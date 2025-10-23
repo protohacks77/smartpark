@@ -1,0 +1,256 @@
+
+import React, { useState, useEffect } from 'react';
+import { doc, setDoc, addDoc, collection, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import type { ParkingLot, ParkingSlot } from '../../types';
+import { GeoPoint } from 'firebase/firestore';
+import SlotEditModal from './SlotEditModal';
+import { TrashIcon } from '../Icons';
+
+const LotForm = ({ lot, onSave, onCancel }: { lot: Partial<ParkingLot>, onSave: (lotData: ParkingLot) => void, onCancel: () => void }) => {
+  const [formData, setFormData] = useState<ParkingLot>({
+    id: lot?.id || '',
+    name: lot?.name || '',
+    address: lot?.address || '',
+    location: lot?.location instanceof GeoPoint ? lot.location : new GeoPoint(0, 0),
+    hourlyRate: lot?.hourlyRate || 1,
+    slots: lot?.slots || [],
+  });
+  const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<Partial<ParkingSlot> | null>(null);
+
+  useEffect(() => {
+    setFormData({
+        id: lot?.id || '',
+        name: lot?.name || '',
+        address: lot?.address || '',
+        location: lot?.location instanceof GeoPoint ? lot.location : new GeoPoint(0, 0),
+        hourlyRate: lot?.hourlyRate || 1,
+        slots: lot?.slots || [],
+    });
+  }, [lot]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type } = e.target;
+    if (name === 'lat' || name === 'lng') {
+        const newCoord = parseFloat(value) || 0;
+        setFormData(prev => ({
+            ...prev,
+            location: new GeoPoint(name === 'lat' ? newCoord : prev.location.latitude, name === 'lng' ? newCoord : prev.location.longitude)
+        }));
+    } else {
+        setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+  
+  const handleOpenSlotModal = (slotToEdit: Partial<ParkingSlot> | null) => {
+    setEditingSlot(slotToEdit);
+    setIsSlotModalOpen(true);
+  };
+  
+  const handleSaveSlot = (savedSlot: ParkingSlot) => {
+    const isEditing = formData.slots.some(s => s.id === savedSlot.id && s !== editingSlot);
+
+    if (isEditing) { // This is an update to an existing slot
+        setFormData(prev => ({
+            ...prev,
+            slots: prev.slots.map(s => s.id === savedSlot.id ? savedSlot : s)
+        }));
+    } else { // This is a new slot
+        setFormData(prev => ({
+            ...prev,
+            slots: [...prev.slots, savedSlot]
+        }));
+    }
+    setIsSlotModalOpen(false);
+  };
+
+  const handleDeleteSlot = (slotId: string) => {
+    if (window.confirm(`Are you sure you want to delete slot ${slotId}?`)) {
+        setFormData(prev => ({
+            ...prev,
+            slots: prev.slots.filter(s => s.id !== slotId)
+        }));
+    }
+  };
+
+
+  const inputStyle = "w-full bg-gray-100 dark:bg-slate-900/50 text-gray-900 dark:text-white p-3 rounded-lg border border-gray-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+
+  return (
+    <div className="p-6 animate-fade-in-fast max-h-[80vh] overflow-y-auto">
+        <h2 className="text-xl font-bold text-center mb-4 text-indigo-500 dark:text-indigo-400">{lot?.id ? 'Edit Parking Lot' : 'Add New Parking Lot'}</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Lot Details */}
+            <div>
+                <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Lot Name</label>
+                <input type="text" name="name" value={formData.name} onChange={handleChange} className={inputStyle} required />
+            </div>
+            <div>
+                <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Address</label>
+                <input type="text" name="address" value={formData.address} onChange={handleChange} className={inputStyle} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Latitude</label>
+                    <input type="number" step="any" name="lat" value={formData.location.latitude} onChange={handleChange} className={inputStyle} required />
+                </div>
+                 <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Longitude</label>
+                    <input type="number" step="any" name="lng" value={formData.location.longitude} onChange={handleChange} className={inputStyle} required />
+                </div>
+            </div>
+            <div>
+                <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Hourly Rate ($)</label>
+                <input type="number" step="0.01" name="hourlyRate" value={formData.hourlyRate} onChange={handleChange} className={inputStyle} required />
+            </div>
+
+            {/* Slot Management */}
+            <div className="pt-4">
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-bold text-lg text-indigo-500 dark:text-indigo-400">Manage Slots ({formData.slots.length})</h3>
+                    <button type="button" onClick={() => handleOpenSlotModal(null)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-3 rounded-lg transition-colors text-sm">
+                        Add New Slot
+                    </button>
+                </div>
+                <div className="space-y-2 p-2 bg-gray-100 dark:bg-slate-900/50 rounded-lg max-h-48 overflow-y-auto">
+                    {formData.slots.sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric: true})).map(s => (
+                        <div key={s.id} className="bg-white dark:bg-slate-800/70 p-2 rounded-md flex justify-between items-center">
+                            <p className="font-mono text-gray-900 dark:text-white">{s.id}</p>
+                            <div className="flex gap-2">
+                                <button type="button" onClick={() => handleOpenSlotModal(s)} className="text-sm bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 px-3 py-1 rounded-md">Edit</button>
+                                <button type="button" onClick={() => handleDeleteSlot(s.id)} className="text-sm bg-pink-800/70 hover:bg-pink-700/70 p-1 rounded-md"><TrashIcon className="w-4 h-4"/></button>
+                            </div>
+                        </div>
+                    ))}
+                    {formData.slots.length === 0 && <p className="text-center text-gray-400 dark:text-slate-500 py-4">No slots added yet.</p>}
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 pt-4">
+                <button type="button" onClick={onCancel} className="flex-1 bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-3 px-4 rounded-lg transition-colors">
+                    Cancel
+                </button>
+                <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+
+        <SlotEditModal
+            isOpen={isSlotModalOpen}
+            onClose={() => setIsSlotModalOpen(false)}
+            onSave={handleSaveSlot}
+            slot={editingSlot}
+            lotLocation={formData.location}
+            existingSlotIds={formData.slots.map(s => s.id).filter(id => id !== editingSlot?.id)}
+        />
+    </div>
+  );
+};
+
+
+interface ManageParkingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  parkingLots: ParkingLot[];
+  onSave: (updatedLots: ParkingLot[]) => void;
+}
+
+const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSave }: ManageParkingModalProps) => {
+  const [view, setView] = useState<'list' | 'form'>('list');
+  const [editingLot, setEditingLot] = useState<Partial<ParkingLot>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+        setView('list');
+        setEditingLot({});
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleEdit = (lot: ParkingLot) => {
+    setEditingLot(lot);
+    setView('form');
+  };
+
+  const handleAdd = () => {
+    setEditingLot({});
+    setView('form');
+  };
+  
+  const handleSaveLot = async (lotData: ParkingLot) => {
+    try {
+        if (lotData.id) { // Editing existing lot
+            const lotDocRef = doc(db, 'parkingLots', lotData.id);
+            await setDoc(lotDocRef, lotData, { merge: true });
+        } else { // Creating new lot
+            await addDoc(collection(db, 'parkingLots'), {
+                ...lotData,
+                id: undefined // Firestore will generate it
+            });
+        }
+        setView('list');
+        setEditingLot({});
+    } catch (error) {
+        console.error("Failed to save parking lot: ", error);
+        alert("Could not save changes.");
+    }
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div 
+        className="group relative flex w-full max-w-2xl flex-col rounded-xl bg-white dark:bg-slate-950 shadow-lg dark:shadow-2xl transition-all duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-10 dark:opacity-20 blur-sm"></div>
+        <div className="absolute inset-px rounded-[11px] bg-white dark:bg-slate-950"></div>
+        <div className="relative text-gray-900 dark:text-white">
+            <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 dark:text-slate-400 hover:text-gray-800 dark:hover:text-white transition-colors z-20">
+              <ion-icon name="close-circle" class="w-8 h-8"></ion-icon>
+            </button>
+
+            {view === 'list' && (
+                <div className="p-6">
+                    <h2 className="text-xl font-bold text-center mb-4 text-indigo-500 dark:text-indigo-400">Manage Parking Lots</h2>
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                        {parkingLots.map(lot => (
+                            <div key={lot.id} className="bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold text-gray-900 dark:text-white">{lot.name}</p>
+                                    <p className="text-sm text-gray-500 dark:text-slate-400">{lot.address}</p>
+                                </div>
+                                <button onClick={() => handleEdit(lot)} className="bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                                    Edit
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                     <button onClick={handleAdd} className="mt-6 w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
+                        Add New Lot
+                    </button>
+                </div>
+            )}
+            
+            {view === 'form' && (
+                <LotForm lot={editingLot} onSave={handleSaveLot} onCancel={() => setView('list')} />
+            )}
+            
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ManageParkingModal;
