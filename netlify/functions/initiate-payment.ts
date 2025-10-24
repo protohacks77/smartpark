@@ -6,12 +6,21 @@ import * as cors from 'cors';
 const corsHandler = cors({ origin: true });
 
 if (admin.apps.length === 0) {
-  admin.initializeApp();
+  try {
+    const serviceAccount = JSON.parse(process.env.SERVICE_KEY as string);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK:', error);
+    // Initialize without credentials for local development or if env var is not set
+    admin.initializeApp();
+  }
 }
 
 const db = admin.firestore();
 
-const initiatePaymentLogic = async (data: any, context: { auth?: { uid: string } }) => {
+const initiatePaymentLogic = async (data: any, context: { auth?: { uid: string } }, req: functions.https.Request) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to make a payment.');
     }
@@ -66,7 +75,7 @@ const initiatePaymentLogic = async (data: any, context: { auth?: { uid: string }
     await paymentIntentRef.set(newIntent);
     
     const paynow = new Paynow(integrationId, integrationKey);
-    paynow.resultUrl = 'https://smartparkings.netlify.app/.netlify/functions/payment-callback';
+    paynow.resultUrl = `https://${req.hostname}/.netlify/functions/payment-callback`;
     paynow.returnUrl = '';
 
     const payment = paynow.createPayment(intentId, `${userId}@smartpark.app`);
@@ -111,7 +120,7 @@ export const initiatePayment = functions.https.onRequest((req, res) => {
             const decodedToken = await admin.auth().verifyIdToken(idToken);
 
             const context = { auth: { uid: decodedToken.uid } };
-            const result = await initiatePaymentLogic(req.body.data, context);
+            const result = await initiatePaymentLogic(req.body, context, req);
 
             res.status(200).send({ data: result });
         } catch (error: any) {

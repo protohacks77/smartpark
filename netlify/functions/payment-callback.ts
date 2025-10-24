@@ -4,7 +4,16 @@ import * as crypto from 'crypto';
 
 // Initialize Firebase Admin SDK if not already initialized
 if (admin.apps.length === 0) {
-  admin.initializeApp();
+  try {
+    const serviceAccount = JSON.parse(process.env.SERVICE_KEY as string);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK:', error);
+    // Initialize without credentials for local development or if env var is not set
+    admin.initializeApp();
+  }
 }
 const db = admin.firestore();
 
