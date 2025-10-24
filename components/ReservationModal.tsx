@@ -76,29 +76,38 @@ const ReservationModal = ({ onClose, onSuccess, lot, user }: ReservationModalPro
     setStep('processing');
     setProcessingMessage('Initiating secure payment...');
 
-    const initiatePayment = httpsCallable(functions, 'initiate-payment');
     try {
-      const result = await initiatePayment({
-        lotId: lot.id,
-        slotId: selectedSlotId,
-        hours: hours,
-        paymentMethod: paymentMethod,
-        ecocashNumber: ecocashNumber,
-        amount: parseFloat(totalPrice)
+      const token = await user.getIdToken();
+      const response = await fetch('/api/initiate-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          lotId: lot.id,
+          slotId: selectedSlotId,
+          hours: hours,
+          paymentMethod: paymentMethod,
+          ecocashNumber: ecocashNumber,
+          amount: parseFloat(totalPrice)
+        })
       });
-      
-      const data = result.data as { success: boolean, message: string, intentId?: string, instructions?: string };
 
-      if (data.success && data.intentId) {
+      const result = await response.json();
+
+      if (response.ok && result.data.success) {
+        const data = result.data as { success: boolean, message: string, intentId?: string, instructions?: string };
         setPaymentIntentId(data.intentId);
         setProcessingMessage(data.instructions || 'Awaiting payment confirmation. Please enter your PIN on your phone.');
       } else {
-        setFailureMessage(data.message || 'Could not initiate payment.');
+        const errorMessage = result.error ? result.error.message : (result.data ? result.data.message : 'Could not initiate payment.');
+        setFailureMessage(errorMessage);
         setStep('failure');
       }
     } catch (error) {
       console.error("Error calling initiate-payment function:", error);
-      setFailureMessage('A server error occurred. Please try again later.');
+      setFailureMessage('A client-side error occurred. Please try again later.');
       setStep('failure');
     }
   };
