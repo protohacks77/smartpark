@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { functions, db } from '../../services/firebase';
+import { functions, db } from '../services/firebase';
 import type { ParkingLot, User, PaymentIntent } from '../types';
 import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon, WalletIcon, CheckmarkCircleIcon, CloseCircleIcon } from './Icons';
 
