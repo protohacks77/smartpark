@@ -1,15 +1,28 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { Paynow } from 'paynow';
+import * as cors from 'cors';
 
-// Initialize Firebase Admin SDK if not already initialized
+const corsHandler = cors({ origin: true });
+
 if (admin.apps.length === 0) {
-  admin.initializeApp();
+  try {
+    // Decode the base64 service account key
+    const serviceAccountString = Buffer.from(process.env.SERVICE_KEY as string, 'base64').toString('utf8');
+    const serviceAccount = JSON.parse(serviceAccountString);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK from SERVICE_KEY:', error);
+    // Fallback for local development or if env var is not a valid base64 string
+    admin.initializeApp();
+  }
 }
 
 const db = admin.firestore();
 
-export const initiatePayment = functions.https.onCall(async (data, context) => {
+const initiatePaymentLogic = async (data: any, context: { auth?: { uid: string } }, req: functions.https.Request) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to make a payment.');
     }
@@ -17,12 +30,10 @@ export const initiatePayment = functions.https.onCall(async (data, context) => {
     const { lotId, slotId, hours, paymentMethod, ecocashNumber, amount } = data;
     const userId = context.auth.uid;
     
-    // --- Data Validation ---
     if (!lotId || !slotId || !hours || !paymentMethod || !ecocashNumber || !amount) {
         throw new functions.https.HttpsError('invalid-argument', 'Missing required payment information.');
     }
     
-    // --- Get Parking Lot Details ---
     const lotDoc = await db.collection('parkingLots').doc(lotId).get();
     if (!lotDoc.exists) {
         throw new functions.https.HttpsError('not-found', 'Parking lot not found.');
@@ -34,11 +45,9 @@ export const initiatePayment = functions.https.onCall(async (data, context) => {
     
     const calculatedAmount = (hours * lotData.hourlyRate).toFixed(2);
     if (parseFloat(calculatedAmount) !== amount) {
-        // Security check to prevent client-side price tampering
         throw new functions.https.HttpsError('invalid-argument', 'Price mismatch detected.');
     }
 
-    // --- Select Paynow Credentials ---
     const isUsd = paymentMethod === 'ECOCASH_USD';
     const integrationId = isUsd ? process.env.ECOCASH_USD_INTEGRATION_ID : process.env.ECOCASH_ZWL_INTEGRATION_ID;
     const integrationKey = isUsd ? process.env.ECOCASH_USD_INTEGRATION_KEY : process.env.ECOCASH_ZWL_INTEGRATION_KEY;
@@ -49,7 +58,6 @@ export const initiatePayment = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'Payment service is not configured correctly.');
     }
     
-    // --- Create Payment Intent in Firestore ---
     const paymentIntentRef = db.collection('paymentIntents').doc();
     const intentId = paymentIntentRef.id;
     const newIntent = {
@@ -68,19 +76,18 @@ export const initiatePayment = functions.https.onCall(async (data, context) => {
     };
     await paymentIntentRef.set(newIntent);
     
-    // --- Initialize Paynow ---
     const paynow = new Paynow(integrationId, integrationKey);
-    paynow.resultUrl = `https://${context.rawRequest.hostname}/.netlify/functions/payment-callback`;
-    paynow.returnUrl = ''; // Not needed for mobile payments
+    // Use environment variables for the result and return URLs
+    paynow.resultUrl = process.env.PAYNOW_RESULT_URL || `https://${req.hostname}/.netlify/functions/payment-callback`;
+    paynow.returnUrl = process.env.PAYNOW_RETURN_URL || '';
 
-    const payment = paynow.createPayment(intentId, `${userId}@smartpark.app`); // Unique reference and user email
+    const payment = paynow.createPayment(intentId, `${userId}@smartpark.app`);
     payment.add(`Parking at ${lotData.name} for ${hours}h`, amount);
 
     try {
         const response = await paynow.sendMobile(payment, ecocashNumber, 'ecocash');
 
         if (response && response.success) {
-            // Update intent with poll URL from Paynow
             await paymentIntentRef.update({ pollUrl: response.pollUrl });
             
             return {
@@ -101,4 +108,34 @@ export const initiatePayment = functions.https.onCall(async (data, context) => {
         await paymentIntentRef.update({ status: 'failed' });
         throw new functions.https.HttpsError('internal', 'An error occurred while communicating with the payment provider.');
     }
+};
+
+export const initiatePayment = functions.https.onRequest((req, res) => {
+    corsHandler(req, res, async () => {
+        try {
+            const { authorization } = req.headers;
+            if (!authorization || !authorization.startsWith('Bearer ')) {
+                res.status(403).send({ error: { message: 'Unauthorized' } });
+                return;
+            }
+
+            const idToken = authorization.split('Bearer ')[1];
+            const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+            const context = { auth: { uid: decodedToken.uid } };
+            const result = await initiatePaymentLogic(req.body, context, req);
+
+            res.status(200).send({ data: result });
+        } catch (error: any) {
+            console.error("Error in initiatePayment onRequest handler:", error);
+            if (error instanceof functions.https.HttpsError) {
+                res.status(error.httpErrorCode.status).send({ error: { message: error.message, code: error.code } });
+            } else if (error.code === 'auth/id-token-expired') {
+                res.status(401).send({ error: { message: 'Token expired, please re-authenticate.', code: 'unauthenticated' } });
+            }
+            else {
+                res.status(500).send({ error: { message: 'Internal Server Error' } });
+            }
+        }
+    });
 });
