@@ -1,6 +1,5 @@
-
 import React, { useEffect, useRef, useState } from 'react';
-import type { ParkingLot } from '../../types';
+import type { ParkingLot, User } from '../../types';
 import { LocationIcon, CarIcon, LayersIcon } from '../Icons';
 import ReservationModal from '../ReservationModal';
 import LoginModal from '../LoginModal';
@@ -43,10 +42,11 @@ interface MapScreenProps {
   parkingLots: ParkingLot[];
   userLocation: GeolocationPosition | null;
   route: { from: [number, number], to: [number, number] } | null;
-  onConfirmReservation: (lotId: string, slotId: string, hours: number) => void;
+  onReservationSuccess: (lotId: string) => void;
   onArrived: () => void;
   isLoggedIn: boolean;
   onLoginSuccess: () => void;
+  user: User | null;
 }
 
 interface MapButtonProps {
@@ -65,7 +65,7 @@ const MapButton: React.FC<MapButtonProps> = ({ children, onClick, title, classNa
   );
 };
 
-const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onArrived, isLoggedIn, onLoginSuccess }: MapScreenProps) => {
+const MapScreen = ({ parkingLots, onReservationSuccess, userLocation, route, onArrived, isLoggedIn, onLoginSuccess, user }: MapScreenProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const userMarker = useRef<any>(null);
@@ -246,9 +246,10 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
     }
   };
   
-  const handleConfirmAndClose = (lotId: string, slotId: string, hours: number) => {
-    onConfirmReservation(lotId, slotId, hours);
+  const handleSuccessAndClose = (lotId: string) => {
+    onReservationSuccess(lotId);
     setTopView('hidden');
+    handleBackToLots();
   };
 
 
@@ -285,12 +286,13 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
         );
       
       case 'reservation':
-        if (!selectedLot) return null;
+        if (!selectedLot || !user) return null;
         return (
           <ReservationModal
             onClose={() => setTopView('lotInfo')}
-            onConfirm={handleConfirmAndClose}
+            onSuccess={handleSuccessAndClose}
             lot={selectedLot}
+            user={user}
           />
         );
       
@@ -317,37 +319,38 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
 
   return (
     <div className="relative h-full w-full">
-      <div ref={mapRef} className="absolute inset-0 bottom-28 bg-gray-200" />
-       
-       <div className="absolute top-20 left-4 right-4 z-[401]">
+      <div ref={mapRef} className="h-full w-full" />
+      <div className="absolute top-24 left-1/2 -translate-x-1/2 w-[95%] max-w-lg z-[401] pointer-events-none">
+        <div className="pointer-events-auto">
           {renderTopView()}
+        </div>
       </div>
-
-      <div className="absolute top-20 right-4 z-[401]">
+      <div className="absolute bottom-24 right-4 z-[401] flex flex-col gap-3">
+        {userLocation && (
+          <MapButton onClick={handleRecenter} title="Recenter on me">
+            <LocationIcon />
+          </MapButton>
+        )}
         <div className="relative">
-          <MapButton onClick={() => setIsLayerMenuOpen(prev => !prev)} title="Map Layers">
+          <MapButton onClick={() => setIsLayerMenuOpen(o => !o)} title="Change Map Layer">
             <LayersIcon />
           </MapButton>
           {isLayerMenuOpen && (
-            <div className="absolute top-full right-0 mt-2 w-36 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md rounded-lg shadow-lg animate-fade-in-fast border border-gray-200 dark:border-slate-700">
-              <button onClick={() => handleLayerSelect('default')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'default' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Default</button>
-              <button onClick={() => handleLayerSelect('satellite')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'satellite' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Satellite</button>
-              <button onClick={() => handleLayerSelect('terrain')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'terrain' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Terrain</button>
+            <div className="absolute bottom-14 right-0 bg-white dark:bg-slate-950 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 p-2 space-y-1 animate-fade-in-fast">
+              <button onClick={() => handleLayerSelect('default')} className="w-full text-left px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">Default</button>
+              <button onClick={() => handleLayerSelect('satellite')} className="w-full text-left px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">Satellite</button>
+              <button onClick={() => handleLayerSelect('terrain')} className="w-full text-left px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">Terrain</button>
             </div>
           )}
         </div>
       </div>
-
-      <div className="absolute bottom-28 right-4 z-[401] flex flex-col gap-4">
-         <MapButton onClick={handleRecenter} title="Recenter">
-            <LocationIcon />
-         </MapButton>
-         {topView === 'lotInfo' && !route && (
-            <button onClick={handleOpenReservationModal} title="Reserve a Spot" className="bg-gradient-to-r from-indigo-500 to-purple-500 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg animate-pulse transition-transform hover:scale-110">
-                <CarIcon />
+      {selectedLot && topView === 'lotInfo' && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-[401]">
+            <button onClick={handleOpenReservationModal} className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-4 px-8 rounded-full transition-transform hover:scale-105 shadow-2xl">
+                Reserve a Spot
             </button>
-         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

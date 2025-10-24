@@ -205,91 +205,16 @@ const App = () => {
     setIsUserDetailsModalOpen(false);
   };
 
-  const handleConfirmReservation = async (lotId: string, slotId: string, hours: number) => {
-    if (!user || user === 'loading') {
-      alert("You must be logged in to make a reservation.");
-      return;
-    }
+  const handleReservationSuccess = (lotId: string) => {
+    const userLocation = geolocation.data?.coords;
+    const destinationLot = parkingLots.find(l => l.id === lotId);
 
-    const lotDocRef = doc(db, 'parkingLots', lotId);
-    const newReservationRef = doc(collection(db, 'reservations')); // Generate ref beforehand
-
-    try {
-      let newReservationData: Omit<Reservation, 'id'> | null = null;
-      
-      await runTransaction(db, async (transaction) => {
-        const lotDoc = await transaction.get(lotDocRef);
-        if (!lotDoc.exists()) {
-          throw new Error("Parking lot does not exist!");
-        }
-
-        const lotData = lotDoc.data() as Omit<ParkingLot, 'id'>;
-        const slotIndex = lotData.slots.findIndex(s => s.id === slotId);
-
-        if (slotIndex === -1) {
-          throw new Error("Parking slot not found!");
-        }
-
-        if (lotData.slots[slotIndex].isOccupied) {
-          throw new Error("This slot has just been taken! Please select another one.");
-        }
-
-        lotData.slots[slotIndex].isOccupied = true;
-        
-        const startTime = new Date();
-        const endTime = new Date(startTime.getTime() + hours * 60 * 60 * 1000);
-
-        transaction.update(lotDocRef, { slots: lotData.slots });
-
-        const reservationId = newReservationRef.id;
-        newReservationData = {
-          userId: user.uid,
-          parkingLotId: lotId,
-          parkingLotName: lotData.name,
-          slotId: slotId,
-          startTime: Timestamp.fromDate(startTime),
-          endTime: Timestamp.fromDate(endTime),
-          durationHours: hours,
-          amountPaid: hours * lotData.hourlyRate,
-          status: 'confirmed' as const,
-        };
-        transaction.set(newReservationRef, newReservationData);
+    if (userLocation && destinationLot) {
+      setRoute({
+        from: [userLocation.latitude, userLocation.longitude],
+        to: [destinationLot.location.latitude, destinationLot.location.longitude]
       });
-
-      console.log("Reservation successful!");
-
-      // Send notification after transaction is successful
-      if (newReservationData) {
-        const newNotification: Omit<Notification, 'id'> = {
-            userId: user.uid,
-            type: 'RESERVED',
-            message: `You have successfully reserved spot ${slotId.toUpperCase()} at ${newReservationData.parkingLotName}. Please mark when you have parked.`,
-            isRead: false,
-            timestamp: Timestamp.now(),
-            data: {
-                reservationId: newReservationRef.id,
-                carPlate: user.carPlate,
-                amountPaid: newReservationData.amountPaid,
-                hoursLeft: newReservationData.durationHours,
-            }
-        };
-        await addDoc(collection(db, 'notifications'), newNotification);
-      }
-
-      const userLocation = geolocation.data?.coords;
-      const destinationLot = parkingLots.find(l => l.id === lotId);
-
-      if (userLocation && destinationLot) {
-        setRoute({
-          from: [userLocation.latitude, userLocation.longitude],
-          to: [destinationLot.location.latitude, destinationLot.location.longitude]
-        });
-        setActiveTab('map');
-      }
-
-    } catch (error) {
-      console.error("Reservation failed:", error);
-      alert(`Could not make reservation: ${error instanceof Error ? error.message : String(error)}`);
+      setActiveTab('map');
     }
   };
   
@@ -325,12 +250,13 @@ const App = () => {
       case 'map':
         return <MapScreen 
                   parkingLots={parkingLots} 
-                  onConfirmReservation={handleConfirmReservation}
+                  onReservationSuccess={handleReservationSuccess}
                   userLocation={geolocation.data}
                   route={route}
                   onArrived={handleArrived}
                   isLoggedIn={!!user}
                   onLoginSuccess={() => { /* onAuthStateChanged handles this */ }}
+                  user={user}
                 />;
       case 'notifications':
         return <NotificationsScreen 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Notification, User, Reservation, ParkingLot } from '../../types';
-import { CheckmarkCircleIcon, TrashIcon, WalletIcon, CarIcon, ClockIcon, SpinnerIcon } from '../Icons';
+import { CheckmarkCircleIcon, TrashIcon, WalletIcon, CarIcon, ClockIcon, SpinnerIcon, LocationIcon, CloseCircleIcon } from '../Icons';
 
 interface NotificationCardProps {
   notification: Notification;
@@ -17,8 +17,10 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reser
   const getIcon = () => {
     switch (notification.type) {
       case 'RESERVED': return <CheckmarkCircleIcon className="w-8 h-8 text-emerald-500 dark:text-emerald-400" />;
+      case 'PAYMENT_CONFIRMED': return <WalletIcon className="w-8 h-8 text-blue-500 dark:text-blue-400" />;
+      case 'PAYMENT_FAILED': return <CloseCircleIcon className="w-8 h-8 text-pink-500 dark:text-pink-400" />;
       case 'TIME_EXPIRED': return <ClockIcon className="w-8 h-8 text-yellow-500 dark:text-yellow-400" />;
-      default: return <CheckmarkCircleIcon className="w-8 h-8 text-blue-500 dark:text-blue-400" />;
+      default: return <CheckmarkCircleIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" />;
     }
   };
 
@@ -46,6 +48,29 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reser
     return null;
   };
 
+  const renderData = () => {
+    if (!notification.data) return null;
+
+    const details = [];
+    if (notification.type === 'RESERVED') {
+        if(notification.data.carPlate) details.push(<span key="plate" className="flex items-center gap-1"><CarIcon className="w-4 h-4"/>{notification.data.carPlate}</span>);
+        if(notification.data.amountPaid) details.push(<span key="paid" className="flex items-center gap-1"><WalletIcon className="w-4 h-4"/>${notification.data.amountPaid?.toFixed(2)}</span>);
+        if(notification.data.hoursLeft) details.push(<span key="hours" className="flex items-center gap-1"><ClockIcon className="w-4 h-4"/>{notification.data.hoursLeft}h reserved</span>);
+    }
+    if (notification.type === 'PAYMENT_CONFIRMED') {
+        if(notification.data.amountPaid) details.push(<span key="paid" className="flex items-center gap-1"><WalletIcon className="w-4 h-4"/>${notification.data.amountPaid?.toFixed(2)}</span>);
+        if(notification.data.parkingLotName) details.push(<span key="lot" className="flex items-center gap-1"><LocationIcon className="w-4 h-4"/>{notification.data.parkingLotName}</span>);
+    }
+
+    if (details.length === 0) return null;
+
+    return (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-slate-400 mt-2">
+            {details}
+        </div>
+    );
+  }
+
   return (
     <div className={`group relative flex-col rounded-xl bg-white dark:bg-slate-950 p-4 shadow-lg dark:shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-indigo-500/20 ${notification.isRead ? 'opacity-60' : ''} ${className}`}>
         <div className={`absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-10 dark:opacity-20 blur-sm transition-opacity duration-300 group-hover:opacity-20 dark:group-hover:opacity-30 ${notification.isRead ? '!opacity-5' : ''}`}></div>
@@ -54,13 +79,7 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reser
             <div className="flex-shrink-0">{getIcon()}</div>
             <div className="flex-grow">
                 <p className="text-gray-900 dark:text-white">{notification.message}</p>
-                {notification.type === 'RESERVED' && notification.data && (
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-slate-400 mt-2">
-                        <span className="flex items-center gap-1"><CarIcon className="w-4 h-4"/>{notification.data.carPlate}</span>
-                        <span className="flex items-center gap-1"><WalletIcon className="w-4 h-4"/>${notification.data.amountPaid?.toFixed(2)}</span>
-                        <span className="flex items-center gap-1"><ClockIcon className="w-4 h-4"/>{notification.data.hoursLeft}h reserved</span>
-                    </div>
-                )}
+                {renderData()}
                 <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">{notification.timestamp.toDate().toLocaleString()}</p>
                 {renderActionButton()}
             </div>
