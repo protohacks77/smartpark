@@ -75,8 +75,9 @@ const initiatePaymentLogic = async (data: any, context: { auth?: { uid: string }
     await paymentIntentRef.set(newIntent);
     
     const paynow = new Paynow(integrationId, integrationKey);
-    paynow.resultUrl = `https://${req.hostname}/.netlify/functions/payment-callback`;
-    paynow.returnUrl = '';
+    // Use environment variables for the result and return URLs
+    paynow.resultUrl = process.env.PAYNOW_RESULT_URL || `https://${req.hostname}/.netlify/functions/payment-callback`;
+    paynow.returnUrl = process.env.PAYNOW_RETURN_URL || '';
 
     const payment = paynow.createPayment(intentId, `${userId}@smartpark.app`);
     payment.add(`Parking at ${lotData.name} for ${hours}h`, amount);
