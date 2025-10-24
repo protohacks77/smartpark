@@ -5,13 +5,15 @@ import * as crypto from 'crypto';
 // Initialize Firebase Admin SDK if not already initialized
 if (admin.apps.length === 0) {
   try {
-    const serviceAccount = JSON.parse(process.env.SERVICE_KEY as string);
+    // Decode the base64 service account key
+    const serviceAccountString = Buffer.from(process.env.SERVICE_KEY as string, 'base64').toString('utf8');
+    const serviceAccount = JSON.parse(serviceAccountString);
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
   } catch (error) {
-    console.error('Failed to initialize Firebase Admin SDK:', error);
-    // Initialize without credentials for local development or if env var is not set
+    console.error('Failed to initialize Firebase Admin SDK from SERVICE_KEY:', error);
+    // Fallback for local development or if env var is not a valid base64 string
     admin.initializeApp();
   }
 }
