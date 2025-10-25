@@ -1,26 +1,14 @@
-<<<<<<< HEAD
-=======
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { functions, db } from '../services/firebase';
-import type { ParkingLot, User, PaymentIntent } from '../types';
-import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon, WalletIcon, CheckmarkCircleIcon, CloseCircleIcon } from './Icons';
-
->>>>>>> 82d4227b06ce9ddfec6ed10598955f299d3a3458
-
-import React, { useState, useMemo, useEffect } from 'react';
-import type { ParkingLot } from '../types';
+import type { ParkingLot, User } from '../types';
 import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon } from './Icons';
 
 interface ReservationModalProps {
   onClose: () => void;
-  onConfirm: (lotId: string, slotId: string, hours: number) => void;
   lot: ParkingLot;
+  user: User;
 }
 
-const ReservationModal = ({ onClose, onConfirm, lot }: ReservationModalProps) => {
+const ReservationModal = ({ onClose, lot, user }: ReservationModalProps) => {
   const [step, setStep] = useState<'select' | 'confirm' | 'processing'>('select');
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [hours, setHours] = useState(1);
@@ -43,10 +31,24 @@ const ReservationModal = ({ onClose, onConfirm, lot }: ReservationModalProps) =>
   };
 
   const handleSubmit = () => {
-    if (!selectedSlotId) return;
+    if (!selectedSlotId || !user) return;
     setStep('processing');
-    // Call the confirm function without the artificial delay
-    onConfirm(lot.id, selectedSlotId, hours);
+    
+    const params = new URLSearchParams({
+      lotId: lot.id,
+      slotId: selectedSlotId,
+      hours: hours.toString(),
+      amount: totalPrice,
+      userId: user.uid,
+      email: user.email,
+      lotName: lot.name,
+      lotAddress: lot.address,
+      destinationLat: lot.location.latitude.toString(),
+      destinationLng: lot.location.longitude.toString(),
+    });
+
+    // Redirect to the new payment page with all necessary details
+    window.location.href = `/payment.html?${params.toString()}`;
   };
 
   return (

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import type { ParkingLot, User, Bill } from '../../types';
 import { LocationIcon, CarIcon, LayersIcon, StarIcon, StarFilledIcon } from '../Icons';
@@ -42,7 +41,6 @@ const calculateSpiderfyPositions = (center: { lat: number, lng: number }, count:
 interface MapScreenProps {
   parkingLots: ParkingLot[];
   userLocation: GeolocationPosition | null;
-  onConfirmReservation: (lotId: string, slotId: string, hours: number) => void;
   isLoggedIn: boolean;
   onLoginSuccess: () => void;
   user: User | null;
@@ -76,7 +74,6 @@ const MapButton: React.FC<MapButtonProps> = ({ children, onClick, title, classNa
 
 const MapScreen = ({ 
     parkingLots, 
-    onConfirmReservation, 
     userLocation, 
     isLoggedIn, 
     onLoginSuccess, 
@@ -346,12 +343,6 @@ const MapScreen = ({
       setTopView('login');
     }
   };
-  
-  const handleConfirmAndClose = (lotId: string, slotId: string, hours: number) => {
-    onConfirmReservation(lotId, slotId, hours);
-    setTopView('hidden');
-  };
-
 
   const handleRecenter = () => {
     if (mapInstance.current && userLocation) {
@@ -394,12 +385,12 @@ const MapScreen = ({
         );
       
       case 'reservation':
-        if (!selectedLot) return null;
+        if (!selectedLot || !user) return null;
         return (
           <ReservationModal
             onClose={() => setTopView('lotInfo')}
-            onConfirm={handleConfirmAndClose}
             lot={selectedLot}
+            user={user}
           />
         );
       

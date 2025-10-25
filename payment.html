@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale-1.0">
+<title>SmartPark - Secure Payment</title>
+
+<script>
+    // This will be populated by your build process or templating engine
+    // For now, we'll hardcode it based on the values in the app.
+    const firebaseConfig = {
+      apiKey: "AIzaSyBGAiw7InabqWQTzxE00wj3DD8ov3Fla_Q",
+      authDomain: "smatpark-9c5dc.firebaseapp.com",
+      projectId: "smatpark-9c5dc",
+      storageBucket: "smatpark-9c5dc.appspot.com",
+      messagingSenderId: "63579930759",
+      appId: "1:63579930759:web:e2db504ff5169cd00bb822"
+    };
+</script>
+
+<!-- Firebase SDKs -->
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    window.firebaseApp = initializeApp(firebaseConfig);
+    console.log("Firebase initialized successfully on payment page.");
+</script>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+<style>
+    :root {
+        --primary-color: #6366f1; /* Indigo 500 */
+        --secondary-color: #a855f7; /* Purple 500 */
+        --bg-dark: #0f172a; /* Slate 950 */
+        --bg-card: #1e293b; /* Slate 800 */
+        --text-primary: #f8fafc; /* Slate 50 */
+        --text-secondary: #94a3b8; /* Slate 400 */
+        --border-color: #334155; /* Slate 700 */
+        --border-radius: 12px;
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --blur-backdrop: blur(10px);
+    }
+    html.dark {
+        color-scheme: dark;
+    }
+    body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--bg-dark);
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    .main-container {
+         display: flex;
+         flex-direction: column;
+         justify-content: center;
+         align-items: center;
+         min-height: 100vh;
+         animation: fadeIn 0.6s ease;
+         padding: 1rem;
+    }
+    .card-base {
+      overflow: hidden; position: relative;
+      background-color: var(--bg-card);
+      border-radius: var(--border-radius); border: 1px solid var(--border-color);
+      width: 100%; max-width: 26rem;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+    }
+    .card-base::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: var(--border-radius);
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        opacity: 0.2;
+        z-index: 0;
+        filter: blur(8px);
+    }
+    .card-content { position: relative; z-index: 1; padding: 1.5rem; }
+    
+    .card-title { font-size: 1.25rem; color: var(--text-primary); font-weight: 700; line-height: 1.2; }
+    .card-subtitle { font-size: 0.9rem; color: var(--text-secondary); }
+    .price-display { font-size: 2.5rem; color: var(--text-primary); font-weight: 800; }
+    .list { margin-top: 1.25rem; list-style: none; padding: 0; }
+    .list li { margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; color: var(--text-secondary); }
+    .list ion-icon { color: var(--primary-color); font-size: 1.25rem; }
+    
+    .btn {
+      cursor: pointer; padding: 0.75rem 1rem; width: 100%;
+      font-size: 1rem; font-weight: 600; color: var(--text-primary);
+      border: none; border-radius: 8px; transition: var(--transition);
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .btn-primary { background-image: linear-gradient(to right, var(--primary-color), var(--secondary-color)); }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(99, 102, 241, 0.2); }
+    .btn:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+    .btn-secondary { background-color: var(--border-color); }
+    .btn-secondary:hover { background-color: #475569; }
+
+    /* --- Modal --- */
+    .modal-backdrop {
+        position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: var(--blur-backdrop); z-index: 100; display: flex; align-items: center;
+        justify-content: center; opacity: 0; visibility: hidden; transition: var(--transition);
+    }
+    .modal-backdrop.active { opacity: 1; visibility: visible; }
+    .modal-container { transform: scale(0.95); transition: var(--transition); }
+    .modal-backdrop.active .modal-container { transform: scale(1); }
+    
+    .payment-options-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 1rem;
+    }
+    .payment-option {
+        background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px;
+        padding: 1rem; text-align: center; cursor: pointer; transition: var(--transition);
+    }
+    .payment-option:hover { transform: translateY(-4px); border-color: var(--primary-color); }
+    .payment-option img { height: 32px; margin: 0 auto 0.75rem auto; object-fit: contain; }
+
+    /* Form Styles */
+    .form-group { position: relative; margin-bottom: 1.5rem; }
+    .form-label {
+        position: absolute; top: 0.875rem; left: 1rem; color: var(--text-secondary);
+        pointer-events: none; transition: all 0.2s ease;
+    }
+    .form-input {
+        width: 100%; padding: 0.875rem 1rem; background: var(--bg-dark);
+        border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);
+        transition: var(--transition);
+    }
+    .form-input:focus { outline: none; border-color: var(--primary-color); }
+    .form-input:focus + .form-label,
+    .form-input:not(:placeholder-shown) + .form-label {
+        top: -0.6rem; font-size: 0.75rem; color: var(--primary-color);
+        background-color: var(--bg-card); padding: 0 0.25rem;
+    }
+
+    /* Loader */
+    .loader {
+        width: 44.8px; height: 44.8px; color: #818cf8; position: relative;
+        background: radial-gradient(11.2px,currentColor 94%,#0000);
+    }
+    .loader:before {
+        content: ''; position: absolute; inset: 0; border-radius: 50%;
+        background: radial-gradient(10.08px at bottom right,#0000 94%,currentColor) top left, radial-gradient(10.08px at bottom left ,#0000 94%,currentColor) top right, radial-gradient(10.08px at top right,#0000 94%,currentColor) bottom left, radial-gradient(10.08px at top left ,#0000 94%,currentColor) bottom right;
+        background-size: 22.4px 22.4px; background-repeat: no-repeat;
+        animation: loader 1.5s infinite cubic-bezier(0.3,1,0,1);
+    }
+    @keyframes loader { 33% { inset: -11.2px; transform: rotate(0deg); } 66% { inset: -11.2px; transform: rotate(90deg); } 100% { inset: 0; transform: rotate(90deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<main class="main-container">
+    <div class="card-base" id="pricingCard">
+        <div class="card-content">
+            <h2 class="card-title">Reservation Payment</h2>
+            <p class="card-subtitle" id="reservationDetails">Loading details...</p>
+            
+            <p class="price-display mt-4" id="amountDisplay">$0.00</p>
+            
+            <ul class="list">
+                <li><ion-icon name="shield-checkmark-outline"></ion-icon>Secure SSL Encrypted Payment</li>
+                <li><ion-icon name="timer-outline"></ion-icon>Spot held for 10 minutes</li>
+                <li><ion-icon name="receipt-outline"></ion-icon>Instant confirmation & receipt</li>
+            </ul>
+            <div class="mt-6 space-y-3">
+              <button class="btn btn-primary" id="proceedButton">Proceed to Payment</button>
+              <button class="btn btn-secondary" id="cancelButton">Cancel Reservation</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Payment Modal -->
+<div class="modal-backdrop" id="paymentModalBackdrop">
+    <div class="modal-container card-base">
+        <div class="card-content">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="card-title" id="paymentModalTitle">Select Payment Method</h3>
+                <button id="closePaymentModal"><ion-icon name="close-outline" class="text-2xl text-slate-400 hover:text-white"></ion-icon></button>
+            </div>
+            
+            <div class="overflow-hidden">
+                <div class="flex transition-transform duration-300" id="paymentSlider">
+                    <!-- View 1: Options -->
+                    <div class="w-full flex-shrink-0" id="payment-options-view">
+                        <div class="payment-options-grid" id="paymentOptionsGrid">
+                            <!-- JS will populate this -->
+                        </div>
+                    </div>
+                    <!-- View 2: Form -->
+                    <div class="w-full flex-shrink-0" id="payment-input-view">
+                        <div class="flex items-center gap-4 mb-6">
+                            <button id="backToOptionsBtn"><ion-icon name="arrow-back-outline" class="text-2xl text-slate-400 hover:text-white"></ion-icon></button>
+                            <h3 id="paymentInputHeaderTitle" class="font-semibold">Enter Details</h3>
+                        </div>
+                        <form id="payment-form" novalidate>
+                            <div id="payment-form-content"></div>
+                            <button class="btn btn-primary w-full mt-6" type="submit" id="submitPaymentBtn">Pay Now</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading/Success Overlay -->
+<div class="modal-backdrop" id="statusOverlay">
+    <div class="modal-container card-base text-center">
+        <div class="card-content">
+            <div id="statusLoader" class="mx-auto">
+                <div class="loader"></div>
+                <p class="mt-4 text-slate-300" id="statusText">Processing payment...</p>
+            </div>
+            <div id="statusSuccess" class="hidden">
+                 <ion-icon name="checkmark-circle" class="text-6xl text-emerald-400 mx-auto"></ion-icon>
+                 <h2 class="text-2xl font-bold mt-4">Payment Successful!</h2>
+                 <p class="text-slate-400 mt-2">Your spot is reserved. Redirecting you back to the map...</p>
+            </div>
+             <div id="statusError" class="hidden">
+                 <ion-icon name="close-circle" class="text-6xl text-pink-500 mx-auto"></ion-icon>
+                 <h2 class="text-2xl font-bold mt-4">Payment Failed</h2>
+                 <p class="text-slate-400 mt-2" id="errorText">Please try again or select another payment method.</p>
+                 <button id="closeErrorBtn" class="btn btn-secondary mt-6">Try Again</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- STATE & CONFIG ---
+    let pollingInterval = null;
+    let pollingTimeout = null;
+    const params = new URLSearchParams(window.location.search);
+    const reservationDetails = {
+        lotId: params.get('lotId'),
+        slotId: params.get('slotId'),
+        hours: params.get('hours'),
+        amount: params.get('amount'),
+        userId: params.get('userId'),
+        email: params.get('email'),
+        lotName: params.get('lotName'),
+        destinationLat: params.get('destinationLat'),
+        destinationLng: params.get('destinationLng'),
+    };
+    
+    // --- DOM ELEMENTS ---
+    const elements = {
+        amountDisplay: document.getElementById('amountDisplay'),
+        reservationDetails: document.getElementById('reservationDetails'),
+        proceedButton: document.getElementById('proceedButton'),
+        cancelButton: document.getElementById('cancelButton'),
+        paymentModalBackdrop: document.getElementById('paymentModalBackdrop'),
+        closePaymentModal: document.getElementById('closePaymentModal'),
+        paymentSlider: document.getElementById('paymentSlider'),
+        paymentOptionsGrid: document.getElementById('paymentOptionsGrid'),
+        backToOptionsBtn: document.getElementById('backToOptionsBtn'),
+        paymentForm: document.getElementById('payment-form'),
+        paymentFormContent: document.getElementById('payment-form-content'),
+        paymentInputHeaderTitle: document.getElementById('paymentInputHeaderTitle'),
+        submitPaymentBtn: document.getElementById('submitPaymentBtn'),
+        statusOverlay: document.getElementById('statusOverlay'),
+        statusLoader: document.getElementById('statusLoader'),
+        statusText: document.getElementById('statusText'),
+        statusSuccess: document.getElementById('statusSuccess'),
+        statusError: document.getElementById('statusError'),
+        errorText: document.getElementById('errorText'),
+        closeErrorBtn: document.getElementById('closeErrorBtn'),
+    };
+
+    const paymentMethods = [
+        { name: 'EcoCash', currency: 'USD', backendName: 'ecocash', icon: 'https://www.vectorlogo.zone/logos/ecocash/ecocash-icon.svg', input: { type: 'tel', label: 'EcoCash Mobile Number' } },
+        { name: 'Visa/Mastercard', currency: 'USD', backendName: 'visa', icon: 'https://www.vectorlogo.zone/logos/visa/visa-icon.svg', input: { type: 'redirect', content: 'You will be redirected to a secure gateway to enter your card details.' } },
+        { name: 'InnBucks', currency: 'USD', backendName: 'innbucks', icon: 'https://play-lh.googleusercontent.com/AeL433s9-Y1Z_a_I2n31J_Scl2-S52J0I42i0e-wOQ9O6Y-m2bJfl-1BrQ=w240-h480-rw', input: { type: 'redirect', content: 'You will be redirected to a secure gateway to complete your InnBucks payment.' } },
+    ];
+
+    // --- INITIALIZATION ---
+    function init() {
+        if (!reservationDetails.amount || !reservationDetails.lotName) {
+            document.body.innerHTML = '<h1 class="text-center text-red-500 p-8">Error: Missing reservation details. Please go back and try again.</h1>';
+            return;
+        }
+        elements.amountDisplay.textContent = `$${parseFloat(reservationDetails.amount).toFixed(2)}`;
+        elements.reservationDetails.textContent = `For Spot ${reservationDetails.slotId.toUpperCase()} at ${reservationDetails.lotName}`;
+        populatePaymentOptions();
+        initializeEventListeners();
+    }
+
+    function populatePaymentOptions() {
+        elements.paymentOptionsGrid.innerHTML = paymentMethods.map(method => `
+            <div class="payment-option" data-name="${method.name}">
+                <img src="${method.icon}" alt="${method.name}">
+                <span class="font-semibold text-sm">${method.name}</span>
+            </div>
+        `).join('');
+    }
+
+    function initializeEventListeners() {
+        elements.proceedButton.addEventListener('click', () => elements.paymentModalBackdrop.classList.add('active'));
+        elements.closePaymentModal.addEventListener('click', closeModal);
+        elements.cancelButton.addEventListener('click', () => window.history.back());
+        elements.paymentModalBackdrop.addEventListener('click', e => e.target === elements.paymentModalBackdrop && closeModal());
+        elements.backToOptionsBtn.addEventListener('click', () => elements.paymentSlider.style.transform = 'translateX(0%)');
+        elements.paymentForm.addEventListener('submit', handlePaymentSubmit);
+        elements.closeErrorBtn.addEventListener('click', () => elements.statusOverlay.classList.remove('active'));
+        elements.paymentOptionsGrid.addEventListener('click', e => {
+            const option = e.target.closest('.payment-option');
+            if (option) selectPaymentMethodHandler(option.dataset.name);
+        });
+    }
+    
+    function closeModal() {
+        elements.paymentModalBackdrop.classList.remove('active');
+        stopPolling();
+    }
+    
+    // --- PAYMENT LOGIC ---
+    function selectPaymentMethodHandler(methodName) {
+        const method = paymentMethods.find(m => m.name === methodName);
+        if (!method) return;
+        
+        elements.paymentForm.dataset.methodName = method.name;
+        elements.paymentForm.dataset.methodBackendName = method.backendName;
+        elements.paymentForm.dataset.methodCurrency = method.currency;
+        elements.paymentInputHeaderTitle.textContent = `Pay with ${method.name}`;
+
+        let contentHTML = '';
+        elements.submitPaymentBtn.style.display = 'block';
+
+        if (method.input.type === 'tel') {
+            contentHTML = `<div class="form-group"><input type="tel" id="payment-input-field" class="form-input" placeholder=" " required /><label class="form-label">${method.input.label}</label></div>`;
+            elements.submitPaymentBtn.textContent = `Pay $${reservationDetails.amount}`;
+        } else if (method.input.type === 'redirect') {
+            contentHTML = `<div class="p-4 text-center text-slate-400 bg-slate-900 rounded-lg">${method.input.content}</div>`;
+            elements.submitPaymentBtn.textContent = 'Proceed to Secure Gateway';
+        }
+        
+        elements.paymentFormContent.innerHTML = contentHTML;
+        elements.paymentSlider.style.transform = 'translateX(-100%)';
+    }
+
+    async function handlePaymentSubmit(e) {
+        e.preventDefault();
+        const methodName = elements.paymentForm.dataset.methodName;
+        const method = paymentMethods.find(m => m.name === methodName);
+        if (!method) return;
+
+        const paymentInputField = document.getElementById('payment-input-field');
+        const paymentDetailsValue = paymentInputField ? paymentInputField.value.trim() : '';
+
+        if (method.input.type === 'tel' && !/^(07[781356])\d{7}$/.test(paymentDetailsValue)) {
+            alert("Please enter a valid Zimbabwean mobile number.");
+            return;
+        }
+        
+        closeModal();
+        showStatusOverlay('loader', 'Initiating secure payment...');
+
+        try {
+            const response = await fetch('/.netlify/functions/paynow-handler', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    paymentMethod: elements.paymentForm.dataset.methodBackendName,
+                    currency: elements.paymentForm.dataset.methodCurrency,
+                    paymentDetails: paymentDetailsValue,
+                    ...reservationDetails
+                }),
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result.success) throw new Error(result.message || 'Payment initiation failed.');
+
+            if (result.redirectUrl) {
+                elements.statusText.textContent = 'Redirecting to payment gateway...';
+                window.location.href = result.redirectUrl;
+            } else if (result.pollUrl) {
+                elements.statusText.textContent = 'Please approve the transaction on your phone.';
+                startPolling(result.pollUrl);
+            } else {
+                 throw new Error("Invalid response from server.");
+            }
+        } catch (error) {
+            showStatusOverlay('error', error.message);
+        }
+    }
+
+    function startPolling(pollUrl) {
+        stopPolling(); // Clear any existing pollers
+        pollingTimeout = setTimeout(() => {
+            stopPolling();
+            showStatusOverlay('error', "Payment verification timed out. Please check your transaction status or try again.");
+        }, 120000); // 2 minute timeout
+
+        pollingInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/.netlify/functions/check-payment-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pollUrl }),
+                });
+                if (!response.ok) return;
+                const result = await response.json();
+                if (result.isPaid) handleSuccessfulPayment();
+                else if (['cancelled', 'failed', 'disputed'].includes(result.status)) {
+                    stopPolling();
+                    showStatusOverlay('error', `Payment was not successful. Status: ${result.status}.`);
+                }
+            } catch (error) { console.error("Polling error:", error); }
+        }, 4000); // Poll every 4 seconds
+    }
+
+    function stopPolling() {
+        if (pollingInterval) clearInterval(pollingInterval);
+        if (pollingTimeout) clearTimeout(pollingTimeout);
+        pollingInterval = pollingTimeout = null;
+    }
+
+    function handleSuccessfulPayment() {
+        stopPolling();
+        showStatusOverlay('success');
+        setTimeout(() => {
+            const redirectParams = new URLSearchParams({
+                payment_success: 'true',
+                lotId: reservationDetails.lotId,
+                destinationLat: reservationDetails.destinationLat,
+                destinationLng: reservationDetails.destinationLng,
+            });
+            window.location.href = `/?${redirectParams.toString()}`;
+        }, 2500);
+    }
+    
+    function showStatusOverlay(state, message) {
+        elements.statusOverlay.classList.add('active');
+        ['loader', 'success', 'error'].forEach(s => elements[`status${s.charAt(0).toUpperCase() + s.slice(1)}`].classList.add('hidden'));
+        
+        const targetElement = elements[`status${state.charAt(0).toUpperCase() + state.slice(1)}`];
+        targetElement.classList.remove('hidden');
+
+        if (state === 'loader' && message) elements.statusText.textContent = message;
+        if (state === 'error' && message) elements.errorText.textContent = message;
+    }
+
+    init();
+});
+</script>
+</body>
+</html>

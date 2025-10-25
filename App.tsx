@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 // FIX: Switched to Firebase v8 compat imports for auth methods to resolve type mismatch errors.
 import firebase from 'firebase/compat/app';
@@ -74,6 +73,31 @@ const App = () => {
   useEffect(() => {
     createDefaultAdmin();
   }, []);
+
+  // Handle redirect from successful payment
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentSuccess = urlParams.get('payment_success');
+    const lotId = urlParams.get('lotId');
+    const destinationLat = urlParams.get('destinationLat');
+    const destinationLng = urlParams.get('destinationLng');
+
+    if (paymentSuccess === 'true' && lotId && destinationLat && destinationLng && geolocation.data) {
+      // User has returned from successful payment
+      alert("Payment successful! Your spot is reserved. Showing route now.");
+
+      setActiveRoute({
+        origin: { lat: geolocation.data.coords.latitude, lng: geolocation.data.coords.longitude },
+        destination: { lat: parseFloat(destinationLat), lng: parseFloat(destinationLng) }
+      });
+      
+      setSelectedLotOnMap(lotId);
+      setActiveTab('map');
+
+      // Clean up URL to avoid re-triggering on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [geolocation.data]); // Re-run when geolocation data becomes available
   
   // Listen for auth state changes
   useEffect(() => {
@@ -411,105 +435,6 @@ const App = () => {
     }
     setIsUserDetailsModalOpen(false);
   };
-
-  const handleConfirmReservation = async (lotId: string, slotId: string, hours: number) => {
-    // FIX: Use a type-safe check to ensure user is a User object.
-    if (!user || typeof user !== 'object') {
-      alert("You must be logged in to make a reservation.");
-      return;
-    }
-    
-    if (unpaidBill) {
-        setIsPayBillModalOpen(true);
-        return;
-    }
-
-    // FIX: Use v8 compat syntax for doc and collection.
-    const lotDocRef = db.collection('parkingLots').doc(lotId);
-    const newReservationRef = db.collection('reservations').doc(); // Generate ref beforehand
-
-    try {
-      let newReservationData: Omit<Reservation, 'id'> | null = null;
-      
-      // FIX: Use v8 compat syntax for runTransaction.
-      await db.runTransaction(async (transaction) => {
-        const lotDoc = await transaction.get(lotDocRef);
-        if (!lotDoc.exists) {
-          throw new Error("Parking lot does not exist!");
-        }
-
-        const lotData = lotDoc.data() as Omit<ParkingLot, 'id'>;
-        const slotIndex = lotData.slots.findIndex(s => s.id === slotId);
-
-        if (slotIndex === -1) {
-          throw new Error("Parking slot not found!");
-        }
-
-        if (lotData.slots[slotIndex].isOccupied) {
-          throw new Error("This slot has just been taken! Please select another one.");
-        }
-
-        lotData.slots[slotIndex].isOccupied = true;
-        
-        const startTime = new Date();
-        const endTime = new Date(startTime.getTime() + hours * 60 * 60 * 1000);
-
-        transaction.update(lotDocRef, { slots: lotData.slots });
-
-        const reservationId = newReservationRef.id;
-        newReservationData = {
-          userId: user.uid,
-          parkingLotId: lotId,
-          parkingLotName: lotData.name,
-          slotId: slotId,
-          // FIX: Use v8 compat syntax for Timestamp.
-          startTime: firebase.firestore.Timestamp.fromDate(startTime),
-          endTime: firebase.firestore.Timestamp.fromDate(endTime),
-          durationHours: hours,
-          amountPaid: hours * lotData.hourlyRate,
-          status: 'confirmed' as const,
-        };
-        transaction.set(newReservationRef, newReservationData);
-      });
-
-      console.log("Reservation successful!");
-
-      // Send notification after transaction is successful
-      if (newReservationData) {
-        const newNotification: Omit<Notification, 'id'> = {
-            userId: user.uid,
-            type: 'RESERVED',
-            message: `You have successfully reserved spot ${slotId.toUpperCase()} at ${newReservationData.parkingLotName}. Please mark when you have parked.`,
-            isRead: false,
-            // FIX: Use v8 compat syntax for Timestamp.
-            timestamp: firebase.firestore.Timestamp.now(),
-            data: {
-                reservationId: newReservationRef.id,
-                carPlate: user.carPlate,
-                amountPaid: newReservationData.amountPaid,
-                hoursLeft: newReservationData.durationHours,
-            }
-        };
-        // FIX: Use v8 compat syntax for addDoc and collection.
-        await db.collection('notifications').add(newNotification);
-      }
-
-      const userLocation = geolocation.data?.coords;
-      const destinationLot = parkingLots.find(l => l.id === lotId);
-
-      if (userLocation && destinationLot) {
-        setActiveRoute({
-            origin: { lat: userLocation.latitude, lng: userLocation.longitude },
-            destination: { lat: destinationLot.location.latitude, lng: destinationLot.location.longitude }
-        });
-        setActiveTab('map');
-      }
-
-    } catch (error) {
-      console.error("Reservation failed:", error);
-      alert(`Could not make reservation: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
   
   const handleToggleFavorite = async (parkingLotId: string) => {
     // FIX: Use a type-safe check to ensure user is a User object.
@@ -566,7 +491,6 @@ const App = () => {
       case 'map':
         return <MapScreen 
                   parkingLots={parkingLots} 
-                  onConfirmReservation={handleConfirmReservation}
                   userLocation={geolocation.data}
                   isLoggedIn={!!user}
                   onLoginSuccess={() => { /* onAuthStateChanged handles this */ }}
