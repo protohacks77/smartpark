@@ -1,6 +1,7 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import type { ParkingLot, User } from '../../types';
-import { LocationIcon, CarIcon, LayersIcon } from '../Icons';
+import { LocationIcon, CarIcon, LayersIcon, StarIcon, StarFilledIcon } from '../Icons';
 import ReservationModal from '../ReservationModal';
 import LoginModal from '../LoginModal';
 import ArrivedModal from '../ArrivedModal';
@@ -42,11 +43,14 @@ interface MapScreenProps {
   parkingLots: ParkingLot[];
   userLocation: GeolocationPosition | null;
   route: { from: [number, number], to: [number, number] } | null;
-  onReservationSuccess: (lotId: string) => void;
+  onConfirmReservation: (lotId: string, slotId: string, hours: number) => void;
   onArrived: () => void;
   isLoggedIn: boolean;
   onLoginSuccess: () => void;
   user: User | null;
+  onToggleFavorite: (lotId: string) => void;
+  selectedLotId: string | null;
+  onClearSelectedLot: () => void;
 }
 
 interface MapButtonProps {
@@ -65,7 +69,7 @@ const MapButton: React.FC<MapButtonProps> = ({ children, onClick, title, classNa
   );
 };
 
-const MapScreen = ({ parkingLots, onReservationSuccess, userLocation, route, onArrived, isLoggedIn, onLoginSuccess, user }: MapScreenProps) => {
+const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onArrived, isLoggedIn, onLoginSuccess, user, onToggleFavorite, selectedLotId, onClearSelectedLot }: MapScreenProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const userMarker = useRef<any>(null);
@@ -96,6 +100,20 @@ const MapScreen = ({ parkingLots, onReservationSuccess, userLocation, route, onA
       tileLayerRef.current = initialLayer;
     }
   }, []);
+
+  // Handle auto-selecting a lot from another screen
+  useEffect(() => {
+    if (selectedLotId && mapInstance.current && parkingLots.length > 0) {
+        const lotToSelect = parkingLots.find(p => p.id === selectedLotId);
+        if (lotToSelect) {
+            const { latitude, longitude } = lotToSelect.location;
+            mapInstance.current.flyTo([latitude, longitude], 17, { duration: 1.2 });
+            setSelectedLot(lotToSelect);
+            setTopView('lotInfo');
+        }
+        onClearSelectedLot(); // Clear after use
+    }
+  }, [selectedLotId, parkingLots, onClearSelectedLot]);
   
   // Handle Layer Changes
   useEffect(() => {
@@ -246,10 +264,9 @@ const MapScreen = ({ parkingLots, onReservationSuccess, userLocation, route, onA
     }
   };
   
-  const handleSuccessAndClose = (lotId: string) => {
-    onReservationSuccess(lotId);
+  const handleConfirmAndClose = (lotId: string, slotId: string, hours: number) => {
+    onConfirmReservation(lotId, slotId, hours);
     setTopView('hidden');
-    handleBackToLots();
   };
 
 
@@ -271,28 +288,35 @@ const MapScreen = ({ parkingLots, onReservationSuccess, userLocation, route, onA
     switch (topView) {
       case 'lotInfo':
         if (!selectedLot) return null;
+        const isFavorite = user?.favoriteParkingLots?.includes(selectedLot.id) || false;
         return (
           <div className="group relative rounded-xl bg-white dark:bg-slate-950 p-3 shadow-lg dark:shadow-2xl transition-all duration-300 animate-fade-in-fast">
             <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-10 dark:opacity-20 blur-sm transition-opacity duration-300 group-hover:opacity-20 dark:group-hover:opacity-30"></div>
             <div className="absolute inset-px rounded-[11px] bg-white dark:bg-slate-950"></div>
             <div className="relative flex items-center justify-between text-gray-900 dark:text-white">
-              <div>
+              <div className="flex-grow pr-2">
                   <h2 className="font-bold">{selectedLot.name}</h2>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{selectedLot.address}</p>
               </div>
-              <button onClick={handleBackToLots} className="text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white bg-gray-200/50 dark:bg-slate-800/50 hover:bg-gray-300 dark:hover:bg-slate-700 px-3 py-1 rounded-md text-sm transition-colors">Back</button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {isLoggedIn && (
+                  <button onClick={() => onToggleFavorite(selectedLot!.id)} className="p-2 text-yellow-400 text-2xl" title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+                    {isFavorite ? <StarFilledIcon /> : <StarIcon />}
+                  </button>
+                )}
+                <button onClick={handleBackToLots} className="text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white bg-gray-200/50 dark:bg-slate-800/50 hover:bg-gray-300 dark:hover:bg-slate-700 px-3 py-1 rounded-md text-sm transition-colors">Back</button>
+              </div>
             </div>
           </div>
         );
       
       case 'reservation':
-        if (!selectedLot || !user) return null;
+        if (!selectedLot) return null;
         return (
           <ReservationModal
             onClose={() => setTopView('lotInfo')}
-            onSuccess={handleSuccessAndClose}
+            onConfirm={handleConfirmAndClose}
             lot={selectedLot}
-            user={user}
           />
         );
       
@@ -319,38 +343,37 @@ const MapScreen = ({ parkingLots, onReservationSuccess, userLocation, route, onA
 
   return (
     <div className="relative h-full w-full">
-      <div ref={mapRef} className="h-full w-full" />
-      <div className="absolute top-24 left-1/2 -translate-x-1/2 w-[95%] max-w-lg z-[401] pointer-events-none">
-        <div className="pointer-events-auto">
+      <div ref={mapRef} className="absolute inset-0 bottom-28 bg-gray-200" />
+       
+       <div className="absolute top-20 left-4 right-4 z-[401]">
           {renderTopView()}
-        </div>
       </div>
-      <div className="absolute bottom-24 right-4 z-[401] flex flex-col gap-3">
-        {userLocation && (
-          <MapButton onClick={handleRecenter} title="Recenter on me">
-            <LocationIcon />
-          </MapButton>
-        )}
+
+      <div className="absolute top-20 right-4 z-[401]">
         <div className="relative">
-          <MapButton onClick={() => setIsLayerMenuOpen(o => !o)} title="Change Map Layer">
+          <MapButton onClick={() => setIsLayerMenuOpen(prev => !prev)} title="Map Layers">
             <LayersIcon />
           </MapButton>
           {isLayerMenuOpen && (
-            <div className="absolute bottom-14 right-0 bg-white dark:bg-slate-950 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 p-2 space-y-1 animate-fade-in-fast">
-              <button onClick={() => handleLayerSelect('default')} className="w-full text-left px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">Default</button>
-              <button onClick={() => handleLayerSelect('satellite')} className="w-full text-left px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">Satellite</button>
-              <button onClick={() => handleLayerSelect('terrain')} className="w-full text-left px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">Terrain</button>
+            <div className="absolute top-full right-0 mt-2 w-36 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md rounded-lg shadow-lg animate-fade-in-fast border border-gray-200 dark:border-slate-700">
+              <button onClick={() => handleLayerSelect('default')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'default' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Default</button>
+              <button onClick={() => handleLayerSelect('satellite')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'satellite' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Satellite</button>
+              <button onClick={() => handleLayerSelect('terrain')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'terrain' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Terrain</button>
             </div>
           )}
         </div>
       </div>
-      {selectedLot && topView === 'lotInfo' && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-[401]">
-            <button onClick={handleOpenReservationModal} className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-4 px-8 rounded-full transition-transform hover:scale-105 shadow-2xl">
-                Reserve a Spot
+
+      <div className="absolute bottom-28 right-4 z-[401] flex flex-col gap-4">
+         <MapButton onClick={handleRecenter} title="Recenter">
+            <LocationIcon />
+         </MapButton>
+         {topView === 'lotInfo' && !route && (
+            <button onClick={handleOpenReservationModal} title="Reserve a Spot" className="bg-gradient-to-r from-indigo-500 to-purple-500 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg animate-pulse transition-transform hover:scale-110">
+                <CarIcon />
             </button>
-        </div>
-      )}
+         )}
+      </div>
     </div>
   );
 };

@@ -1,17 +1,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { HomeIcon, MapIcon, NotificationsIcon, SettingsIcon } from './Icons';
+import { HomeIcon, MapIcon, NotificationsIcon, SettingsIcon, NewspaperIcon } from './Icons';
 import type { ActiveTab } from '../types';
 
 interface DockProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
+  hasUnreadNotices?: boolean;
+  hasUnreadNotifications?: boolean;
 }
 
 const tabs: { id: ActiveTab, label: string, icon: React.ReactElement }[] = [
     { id: 'home', label: 'Home', icon: <HomeIcon /> },
     { id: 'map', label: 'Map', icon: <MapIcon /> },
     { id: 'notifications', label: 'Notifications', icon: <NotificationsIcon /> },
+    { id: 'notices', label: 'Notices', icon: <NewspaperIcon /> },
     { id: 'settings', label: 'Settings', icon: <SettingsIcon /> },
 ];
 
@@ -20,17 +23,21 @@ interface DockItemProps {
   label: string;
   isActive: boolean;
   onClick: () => void;
+  hasBadge?: boolean;
 }
 
 const DockItem = React.forwardRef<HTMLButtonElement, DockItemProps>(
-  ({ icon, label, isActive, onClick }, ref) => {
+  ({ icon, label, isActive, onClick, hasBadge }, ref) => {
     return (
       <button 
         ref={ref}
         onClick={onClick} 
-        className={`relative z-10 flex flex-col items-center justify-center gap-1 w-1/4 h-full transition-all duration-300 focus:outline-none active:scale-90`}
+        className={`relative z-10 flex flex-col items-center justify-center gap-1 h-full transition-all duration-300 focus:outline-none active:scale-90`}
       >
-        <div className={`transition-all duration-300 ${isActive ? 'text-cyan-400 text-3xl -translate-y-2' : 'text-gray-500 dark:text-gray-400 text-2xl'}`}>{icon}</div>
+        <div className={`relative transition-all duration-300 ${isActive ? 'text-cyan-400 text-3xl -translate-y-2' : 'text-gray-500 dark:text-gray-400 text-2xl'}`}>
+            {icon}
+            {hasBadge && <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-950/80 animate-pulse"></span>}
+        </div>
         <span className={`text-xs font-medium transition-all duration-300 ${isActive ? 'opacity-100 text-gray-800 dark:text-white' : 'opacity-0 -translate-y-2'}`}>{label}</span>
       </button>
     );
@@ -38,7 +45,7 @@ const DockItem = React.forwardRef<HTMLButtonElement, DockItemProps>(
 );
 
 
-const Dock = ({ activeTab, setActiveTab }: DockProps) => {
+const Dock = ({ activeTab, setActiveTab, hasUnreadNotices, hasUnreadNotifications }: DockProps) => {
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [sliderStyle, setSliderStyle] = useState({ width: 0, left: 0, opacity: 0 });
 
@@ -92,6 +99,10 @@ const Dock = ({ activeTab, setActiveTab }: DockProps) => {
               label={tab.label}
               isActive={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)} 
+              hasBadge={
+                (tab.id === 'notices' && hasUnreadNotices) ||
+                (tab.id === 'notifications' && hasUnreadNotifications)
+              }
             />
           ))}
         </div>

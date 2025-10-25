@@ -1,13 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
-import { doc, setDoc, addDoc, collection, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, updateDoc, deleteDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { ParkingLot, ParkingSlot } from '../../types';
 import { GeoPoint } from 'firebase/firestore';
 import SlotEditModal from './SlotEditModal';
 import { TrashIcon } from '../Icons';
+import ConfirmationModal from './ConfirmationModal';
 
-const LotForm = ({ lot, onSave, onCancel }: { lot: Partial<ParkingLot>, onSave: (lotData: ParkingLot) => void, onCancel: () => void }) => {
+const LotForm = ({ lot, onSave, onCancel, onDelete }: { lot: Partial<ParkingLot>, onSave: (lotData: ParkingLot) => void, onCancel: () => void, onDelete: (lotId: string) => void }) => {
   const [formData, setFormData] = useState<ParkingLot>({
     id: lot?.id || '',
     name: lot?.name || '',
@@ -84,7 +84,19 @@ const LotForm = ({ lot, onSave, onCancel }: { lot: Partial<ParkingLot>, onSave: 
 
   return (
     <div className="p-6 animate-fade-in-fast max-h-[80vh] overflow-y-auto">
-        <h2 className="text-xl font-bold text-center mb-4 text-indigo-500 dark:text-indigo-400">{lot?.id ? 'Edit Parking Lot' : 'Add New Parking Lot'}</h2>
+        <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-indigo-500 dark:text-indigo-400">{lot?.id ? 'Edit Parking Lot' : 'Add New Parking Lot'}</h2>
+            {lot?.id && (
+                <button
+                    type="button"
+                    onClick={() => onDelete(lot.id!)}
+                    className="bg-pink-600/80 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg transition-colors text-sm flex items-center gap-2"
+                >
+                    <TrashIcon className="w-4 h-4" />
+                    Delete Lot
+                </button>
+            )}
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
             {/* Lot Details */}
             <div>
@@ -166,6 +178,9 @@ interface ManageParkingModalProps {
 const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSave }: ManageParkingModalProps) => {
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingLot, setEditingLot] = useState<Partial<ParkingLot>>({});
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [lotToDeleteId, setLotToDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -205,51 +220,103 @@ const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSave }: ManagePark
     }
   };
 
-  return (
-    <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in"
-      onClick={onClose}
-    >
-      <div 
-        className="group relative flex w-full max-w-2xl flex-col rounded-xl bg-white dark:bg-slate-950 shadow-lg dark:shadow-2xl transition-all duration-300"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-10 dark:opacity-20 blur-sm"></div>
-        <div className="absolute inset-px rounded-[11px] bg-white dark:bg-slate-950"></div>
-        <div className="relative text-gray-900 dark:text-white">
-            <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 dark:text-slate-400 hover:text-gray-800 dark:hover:text-white transition-colors z-20">
-              <ion-icon name="close-circle" class="w-8 h-8"></ion-icon>
-            </button>
+  const handleDeleteLot = (lotId: string) => {
+    setLotToDeleteId(lotId);
+    setIsConfirmOpen(true);
+  };
 
-            {view === 'list' && (
-                <div className="p-6">
-                    <h2 className="text-xl font-bold text-center mb-4 text-indigo-500 dark:text-indigo-400">Manage Parking Lots</h2>
-                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
-                        {parkingLots.map(lot => (
-                            <div key={lot.id} className="bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg flex justify-between items-center">
-                                <div>
-                                    <p className="font-semibold text-gray-900 dark:text-white">{lot.name}</p>
-                                    <p className="text-sm text-gray-500 dark:text-slate-400">{lot.address}</p>
-                                </div>
-                                <button onClick={() => handleEdit(lot)} className="bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
-                                    Edit
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                     <button onClick={handleAdd} className="mt-6 w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
-                        Add New Lot
-                    </button>
-                </div>
-            )}
-            
-            {view === 'form' && (
-                <LotForm lot={editingLot} onSave={handleSaveLot} onCancel={() => setView('list')} />
-            )}
-            
+  const executeDelete = async () => {
+    if (!lotToDeleteId) return;
+
+    setIsDeleting(true);
+    try {
+      // Create a batch to perform multiple writes as a single atomic unit.
+      const batch = writeBatch(db);
+
+      // 1. Delete the parking lot document.
+      const lotDocRef = doc(db, 'parkingLots', lotToDeleteId);
+      batch.delete(lotDocRef);
+
+      // 2. Find and delete all associated reservations.
+      const reservationsQuery = query(
+        collection(db, 'reservations'),
+        where('parkingLotId', '==', lotToDeleteId)
+      );
+      const reservationsSnapshot = await getDocs(reservationsQuery);
+      reservationsSnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+
+      // Commit the batch.
+      await batch.commit();
+      
+      setView('list');
+    } catch (error) {
+      console.error("Failed to delete parking lot and its reservations: ", error);
+      alert("Could not delete the parking lot. Please try again.");
+    } finally {
+      setIsDeleting(false);
+      setIsConfirmOpen(false);
+      setLotToDeleteId(null);
+    }
+  };
+
+  return (
+    <>
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in"
+        onClick={onClose}
+      >
+        <div 
+          className="group relative flex w-full max-w-2xl flex-col rounded-xl bg-white dark:bg-slate-950 shadow-lg dark:shadow-2xl transition-all duration-300"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-10 dark:opacity-20 blur-sm"></div>
+          <div className="absolute inset-px rounded-[11px] bg-white dark:bg-slate-950"></div>
+          <div className="relative text-gray-900 dark:text-white">
+              <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 dark:text-slate-400 hover:text-gray-800 dark:hover:text-white transition-colors z-20">
+                <ion-icon name="close-circle" class="w-8 h-8"></ion-icon>
+              </button>
+
+              {view === 'list' && (
+                  <div className="p-6">
+                      <h2 className="text-xl font-bold text-center mb-4 text-indigo-500 dark:text-indigo-400">Manage Parking Lots</h2>
+                      <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                          {parkingLots.map(lot => (
+                              <div key={lot.id} className="bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg flex justify-between items-center">
+                                  <div>
+                                      <p className="font-semibold text-gray-900 dark:text-white">{lot.name}</p>
+                                      <p className="text-sm text-gray-500 dark:text-slate-400">{lot.address}</p>
+                                  </div>
+                                  <button onClick={() => handleEdit(lot)} className="bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                                      Edit
+                                  </button>
+                              </div>
+                          ))}
+                      </div>
+                       <button onClick={handleAdd} className="mt-6 w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
+                          Add New Lot
+                      </button>
+                  </div>
+              )}
+              
+              {view === 'form' && (
+                  <LotForm lot={editingLot} onSave={handleSaveLot} onCancel={() => setView('list')} onDelete={handleDeleteLot} />
+              )}
+              
+          </div>
         </div>
       </div>
-    </div>
+      <ConfirmationModal
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={executeDelete}
+        title="Delete Parking Lot"
+        message="Are you sure you want to delete this parking lot? This will also delete all associated slots and reservations. This action cannot be undone."
+        confirmText="Delete"
+        isProcessing={isDeleting}
+      />
+    </>
   );
 };
 

@@ -1,6 +1,7 @@
+
 import type { Timestamp, GeoPoint } from 'firebase/firestore';
 
-export type ActiveTab = 'home' | 'map' | 'notifications' | 'settings';
+export type ActiveTab = 'home' | 'map' | 'notifications' | 'settings' | 'notices';
 
 export type Theme = 'dark' | 'light';
 
@@ -15,7 +16,6 @@ export interface Reservation {
   durationHours: number;
   amountPaid: number;
   status: 'confirmed' | 'active' | 'completed' | 'expired';
-  paymentIntentId?: string;
 }
 
 export interface User {
@@ -24,6 +24,8 @@ export interface User {
   email: string;
   carPlate: string;
   ecocashNumber: string;
+  lastViewedNotices?: Timestamp;
+  favoriteParkingLots?: string[];
 }
 
 // This represents the user object combined with their reservations for use in components
@@ -32,7 +34,7 @@ export interface UserWithReservations extends User {
 }
 
 export interface ParkingSlot {
-  id:string;
+  id: string;
   isOccupied: boolean;
   reservedUntil?: Timestamp;
   coords?: {
@@ -53,7 +55,7 @@ export interface ParkingLot {
 export interface Notification {
   id:string;
   userId: string;
-  type: 'RESERVED' | 'TIME_EXPIRED' | 'PAYMENT_CONFIRMED' | 'PAYMENT_FAILED' | 'GENERIC';
+  type: 'RESERVED' | 'TIME_EXPIRED' | 'PAYMENT_CONFIRMED' | 'GENERIC' | 'REVIEW_REPLY';
   message: string;
   isRead: boolean;
   timestamp: Timestamp; // Changed to Firestore Timestamp
@@ -62,24 +64,27 @@ export interface Notification {
     carPlate?: string;
     amountPaid?: number;
     hoursLeft?: number;
-    parkingLotName?: string;
+    reviewId?: string;
   };
 }
 
-export interface PaymentIntent {
-  id: string; // Document ID
+export interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  timestamp: Timestamp;
+}
+
+export interface Review {
+  id: string;
   userId: string;
+  username: string;
   parkingLotId: string;
   parkingLotName: string;
-  slotId: string;
-  durationHours: number;
-  amount: number;
-  currency: 'USD' | 'ZWL';
-  ecocashNumber: string;
-  status: 'pending' | 'successful' | 'failed' | 'expired';
-  pollUrl?: string; // from Paynow
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  rating: number; // 1 to 5
+  comment: string;
+  timestamp: Timestamp;
+  adminReply?: string;
 }
 
 export interface WeeklyReservations {

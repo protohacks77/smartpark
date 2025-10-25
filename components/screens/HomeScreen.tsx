@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { CarIcon, WalletIcon, LocationIcon, CheckmarkCircleIcon, CloseCircleIcon, ClockIcon } from '../Icons';
+import React, { useMemo } from 'react';
+import { CarIcon, WalletIcon, LocationIcon, CheckmarkCircleIcon, CloseCircleIcon, ClockIcon, StarFilledIcon } from '../Icons';
 import type { UserWithReservations, ParkingLot } from '../../types';
 
 interface HomeScreenProps {
@@ -8,6 +8,9 @@ interface HomeScreenProps {
   parkingLots: ParkingLot[];
   onFindParking: () => void;
   onEditDetails: () => void;
+  onLeaveReview: () => void;
+  onToggleFavorite: (lotId: string) => void;
+  onSelectLotOnMap: (lotId: string) => void;
 }
 
 interface InfoCardProps {
@@ -27,9 +30,30 @@ const InfoCard: React.FC<InfoCardProps> = ({ children, className = "" }) => {
 };
 
 
-const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails }: HomeScreenProps) => {
+const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveReview, onToggleFavorite, onSelectLotOnMap }: HomeScreenProps) => {
   const totalSlots = parkingLots.reduce((acc, lot) => acc + lot.slots.length, 0);
   const occupiedSlots = parkingLots.reduce((acc, lot) => acc + lot.slots.filter(s => s.isOccupied).length, 0);
+  const hasParkedBefore = user?.reservations?.some(r => r.status === 'completed' || r.status === 'expired');
+
+  const frequentLots = useMemo(() => {
+    if (!user?.reservations || user.reservations.length === 0) return [];
+    const counts: { [key: string]: number } = {};
+    user.reservations.forEach(r => {
+      counts[r.parkingLotId] = (counts[r.parkingLotId] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3) // Top 3
+      .map(([lotId]) => parkingLots.find(p => p.id === lotId))
+      .filter((p): p is ParkingLot => !!p);
+  }, [user?.reservations, parkingLots]);
+
+  const favoriteLots = useMemo(() => {
+    if (!user?.favoriteParkingLots) return [];
+    return user.favoriteParkingLots
+      .map(lotId => parkingLots.find(p => p.id === lotId))
+      .filter((p): p is ParkingLot => !!p);
+  }, [user?.favoriteParkingLots, parkingLots]);
 
   return (
     <div className="p-4 pt-24 pb-28 space-y-6 overflow-y-auto h-full animate-fade-in">
@@ -103,15 +127,63 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails }: HomeScr
           <p className="text-gray-500 dark:text-slate-400">No recent parking history.</p>
         )}
       </InfoCard>
+
+      {/* Card: Favorite Spots */}
+      {favoriteLots.length > 0 && (
+        <InfoCard className="animate-slide-in-4">
+          <h2 className="font-bold text-lg mb-3 text-indigo-500 dark:text-indigo-400">Favorite Spots</h2>
+          <div className="space-y-3">
+            {favoriteLots.map(lot => (
+              <div key={lot.id} className="bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg flex items-center justify-between">
+                <button onClick={() => onSelectLotOnMap(lot.id)} className="text-left flex-grow">
+                  <p className="font-semibold text-gray-900 dark:text-white">{lot.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{lot.address}</p>
+                </button>
+                <button onClick={() => onToggleFavorite(lot.id)} className="p-2 text-yellow-400 text-2xl" title="Remove from favorites">
+                  <StarFilledIcon />
+                </button>
+              </div>
+            ))}
+          </div>
+        </InfoCard>
+      )}
+
+      {/* Card: Frequently Visited */}
+      {frequentLots.length > 0 && (
+        <InfoCard className="animate-slide-in-5">
+          <h2 className="font-bold text-lg mb-3 text-indigo-500 dark:text-indigo-400">Frequently Visited</h2>
+          <div className="space-y-3">
+            {frequentLots.map(lot => (
+              <div key={lot.id} className="bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg">
+                <button onClick={() => onSelectLotOnMap(lot.id)} className="text-left w-full">
+                  <p className="font-semibold text-gray-900 dark:text-white">{lot.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{lot.address}</p>
+                </button>
+              </div>
+            ))}
+          </div>
+        </InfoCard>
+      )}
       
       {/* Card 4: Find Parking */}
-      <InfoCard className="animate-slide-in-4 text-center">
+      <InfoCard className="animate-slide-in-6 text-center">
          <h2 className="font-bold text-lg mb-2 text-indigo-500 dark:text-indigo-400">Ready to Park?</h2>
          <p className="text-gray-500 dark:text-slate-400 mb-4">Find the nearest available parking spot now.</p>
          <button onClick={onFindParking} className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
            Find a Parking Lot
          </button>
       </InfoCard>
+
+      {/* Card 5: Leave a review */}
+      {hasParkedBefore && (
+        <InfoCard className="animate-slide-in-7">
+          <h2 className="font-bold text-lg mb-2 text-indigo-500 dark:text-indigo-400">Feedback</h2>
+          <p className="text-gray-500 dark:text-slate-400 mb-4">Share your experience to help us improve.</p>
+          <button onClick={onLeaveReview} className="w-full bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+            Leave a Review
+          </button>
+        </InfoCard>
+      )}
     </div>
   );
 };

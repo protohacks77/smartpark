@@ -1,14 +1,17 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { User, Reservation, ParkingLot, Theme } from '../../types';
+import type { User, Reservation, ParkingLot, Theme, Notice, Review } from '../../types';
 import {
   BarChartIcon,
   CashIcon,
+  ChatbubblesIcon,
   DocumentTextIcon,
   LayersIcon,
   LogOutIcon,
   MoonIcon,
+  NewspaperIcon,
   PersonIcon,
   SpinnerIcon,
   SunIcon,
@@ -17,12 +20,13 @@ import {
 import ViewAllUsersModal from './ViewAllUsersModal';
 import ManageParkingModal from './ManageParkingModal';
 import UserDetailModal from './UserDetailModal';
-import { generateReport } from '../../services/reportGenerator';
 import AdminSearch from './AdminSearch';
 import LocationInfoModal from './LocationInfoModal';
 import RevenueChart from './RevenueChart';
 import LiveOccupancyTable from './LiveOccupancyTable';
 import ReportGenerationModal from './ReportGenerationModal';
+import ManageNoticesModal from './ManageNoticesModal';
+import ManageReviewsModal from './ManageReviewsModal';
 
 // Card component for dashboard items
 const StatCard = ({ icon, title, value, detail }: { icon: React.ReactNode, title: string, value: string, detail?: string }) => (
@@ -47,12 +51,16 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [users, setUsers] = useState<User[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [parkingLots, setParkingLots] = useState<ParkingLot[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
   const [isParkingModalOpen, setIsParkingModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isNoticesModalOpen, setIsNoticesModalOpen] = useState(false);
+  const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{lot: ParkingLot, slotId?: string} | null>(null);
   
@@ -60,29 +68,58 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [revenueFilter, setRevenueFilter] = useState<'day' | 'week' | 'month'>('week');
 
   useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-    
-    const unsubscribers = [
-      onSnapshot(collection(db, 'users'), snapshot => {
-        setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
-      }, err => setError("Failed to load users.")),
-      onSnapshot(collection(db, 'reservations'), snapshot => {
-        setReservations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[]);
-      }, err => setError("Failed to load reservations.")),
-      onSnapshot(collection(db, 'parkingLots'), snapshot => {
-        setParkingLots(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ParkingLot[]);
-      }, err => setError("Failed to load parking lots.")),
-    ];
-    
-    // Using a timeout to give snapshots time to load, then stop loading spinner.
-    const timer = setTimeout(() => setIsLoading(false), 1500);
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const usersPromise = getDocs(collection(db, 'users'));
+        const reservationsPromise = getDocs(collection(db, 'reservations'));
+        const parkingLotsPromise = getDocs(collection(db, 'parkingLots'));
 
-    return () => {
-      unsubscribers.forEach(unsub => unsub());
-      clearTimeout(timer);
+        const [usersSnapshot, reservationsSnapshot, parkingLotsSnapshot] = await Promise.all([
+          usersPromise,
+          reservationsPromise,
+          parkingLotsPromise,
+        ]);
+
+        setUsers(usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
+        setReservations(reservationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[]);
+        setParkingLots(parkingLotsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ParkingLot[]);
+        
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err);
+        setError("Failed to load dashboard data. Please try refreshing the page.");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
+    fetchData();
+  }, []);
+  
+  // Real-time listener for notices
+  useEffect(() => {
+    const q = query(collection(db, 'notices'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        setNotices(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notice[]);
+    }, (err) => {
+        console.error("Failed to fetch notices in real-time:", err);
+        setError(prevError => prevError || "Failed to load notices. Please try refreshing.");
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time listener for reviews
+  useEffect(() => {
+    const q = query(collection(db, 'reviews'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        setReviews(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Review[]);
+    }, (err) => {
+        console.error("Failed to fetch reviews in real-time:", err);
+        setError(prevError => prevError || "Failed to load reviews. Please try refreshing.");
+    });
+    return () => unsubscribe();
   }, []);
 
   const revenueChartData = useMemo(() => {
@@ -201,7 +238,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
         </div>
 
         {/* Actions Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           <button onClick={() => setIsParkingModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
             <LayersIcon className="w-10 h-10 text-indigo-500 dark:text-indigo-400 mb-2"/>
             <span className="font-semibold">Manage Parking Lots</span>
@@ -213,6 +250,14 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
           <button onClick={() => setIsReportModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
             <DocumentTextIcon className="w-10 h-10 text-emerald-500 dark:text-emerald-400 mb-2"/>
             <span className="font-semibold">Generate PDF Report</span>
+          </button>
+          <button onClick={() => setIsNoticesModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
+            <NewspaperIcon className="w-10 h-10 text-yellow-500 dark:text-yellow-400 mb-2"/>
+            <span className="font-semibold">Manage Notices</span>
+          </button>
+          <button onClick={() => setIsReviewsModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
+            <ChatbubblesIcon className="w-10 h-10 text-pink-500 dark:text-pink-400 mb-2"/>
+            <span className="font-semibold">Manage Reviews</span>
           </button>
         </div>
         
@@ -258,6 +303,18 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
         allReservations={reservations}
         allUsers={users}
         allParkingLots={parkingLots}
+      />
+
+      <ManageNoticesModal
+        isOpen={isNoticesModalOpen}
+        onClose={() => setIsNoticesModalOpen(false)}
+        notices={notices}
+      />
+
+      <ManageReviewsModal
+        isOpen={isReviewsModalOpen}
+        onClose={() => setIsReviewsModalOpen(false)}
+        reviews={reviews}
       />
     </div>
   );
