@@ -1,7 +1,14 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { getFunctions } from 'firebase/functions';
+
+// import { initializeApp } from 'firebase/app';
+// import { getFirestore } from 'firebase/firestore';
+// import { getAuth } from 'firebase/auth';
+// import { getFunctions } from 'firebase/functions';
+
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
+import 'firebase/compat/auth';
+import 'firebase/compat/functions';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBGAiw7InabqWQTzxE00wj3DD8ov3Fla_Q",
@@ -14,8 +21,8 @@ const firebaseConfig = {
 };
 
 
-const app = initializeApp(firebaseConfig);
+const app = firebase.initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
-export const auth = getAuth(app);
-export const functions = getFunctions(app);
+export const db = firebase.firestore();
+export const auth = firebase.auth();
+export const functions = firebase.functions();

@@ -1,14 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import type { ParkingSlot } from '../../types';
-import { GeoPoint } from 'firebase/firestore';
+// import { GeoPoint } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 
 interface SlotEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (slot: ParkingSlot) => void;
   slot: Partial<ParkingSlot> | null;
-  lotLocation: GeoPoint;
+  // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
+  lotLocation: firebase.firestore.GeoPoint;
   existingSlotIds: string[];
 }
 

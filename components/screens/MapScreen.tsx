@@ -1,10 +1,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import type { ParkingLot, User } from '../../types';
+import type { ParkingLot, User, Bill } from '../../types';
 import { LocationIcon, CarIcon, LayersIcon, StarIcon, StarFilledIcon } from '../Icons';
 import ReservationModal from '../ReservationModal';
 import LoginModal from '../LoginModal';
-import ArrivedModal from '../ArrivedModal';
+import NavigationInstructions from '../NavigationInstructions';
 
 // Leaflet is loaded via CDN, declare it to TypeScript
 declare const L: any;
@@ -42,18 +42,23 @@ const calculateSpiderfyPositions = (center: { lat: number, lng: number }, count:
 interface MapScreenProps {
   parkingLots: ParkingLot[];
   userLocation: GeolocationPosition | null;
-  route: { from: [number, number], to: [number, number] } | null;
   onConfirmReservation: (lotId: string, slotId: string, hours: number) => void;
-  onArrived: () => void;
   isLoggedIn: boolean;
   onLoginSuccess: () => void;
   user: User | null;
   onToggleFavorite: (lotId: string) => void;
   selectedLotId: string | null;
   onClearSelectedLot: () => void;
+  activeRoute: { origin: { lat: number; lng: number }; destination: { lat: number; lng: number } } | null;
+  onClearActiveRoute: () => void;
+  unpaidBill: Bill | null;
+  onOpenPayBillModal: () => void;
+  onOpenUserDetailsModal: () => void;
 }
 
 interface MapButtonProps {
+  // FIX: Add children prop to allow this component to wrap other elements.
+  children: React.ReactNode;
   onClick?: () => void;
   title: string;
   className?: string;
@@ -69,7 +74,22 @@ const MapButton: React.FC<MapButtonProps> = ({ children, onClick, title, classNa
   );
 };
 
-const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onArrived, isLoggedIn, onLoginSuccess, user, onToggleFavorite, selectedLotId, onClearSelectedLot }: MapScreenProps) => {
+const MapScreen = ({ 
+    parkingLots, 
+    onConfirmReservation, 
+    userLocation, 
+    isLoggedIn, 
+    onLoginSuccess, 
+    user, 
+    onToggleFavorite, 
+    selectedLotId, 
+    onClearSelectedLot,
+    activeRoute,
+    onClearActiveRoute,
+    unpaidBill,
+    onOpenPayBillModal,
+    onOpenUserDetailsModal,
+}: MapScreenProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const userMarker = useRef<any>(null);
@@ -78,9 +98,14 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
   const routeControl = useRef<any>(null);
   
   const [selectedLot, setSelectedLot] = useState<ParkingLot | null>(null);
-  const [activeLayer, setActiveLayer] = useState<keyof typeof tileLayers>('default');
+  const [activeLayer, setActiveLayer] = useState<keyof typeof tileLayers>('satellite');
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false);
-  const [topView, setTopView] = useState<'hidden' | 'lotInfo' | 'reservation' | 'login' | 'arrived'>('hidden');
+  const [topView, setTopView] = useState<'hidden' | 'lotInfo' | 'reservation' | 'login' | 'paywall'>('hidden');
+
+  const [instructions, setInstructions] = useState<any[]>([]);
+  const [currentInstructionIndex, setCurrentInstructionIndex] = useState(0);
+  const [liveDistance, setLiveDistance] = useState(0);
+  const instructionStartPoint = useRef<any>(null);
 
   // Initialize Map
   useEffect(() => {
@@ -93,8 +118,8 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
       mapInstance.current = map;
       markersLayer.current = L.layerGroup().addTo(map);
       
-      const initialLayer = L.tileLayer(tileLayers.default.url, {
-        attribution: tileLayers.default.attribution,
+      const initialLayer = L.tileLayer(tileLayers.satellite.url, {
+        attribution: tileLayers.satellite.attribution,
         maxZoom: 19
       }).addTo(map);
       tileLayerRef.current = initialLayer;
@@ -151,11 +176,100 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
       }
     }
   }, [userLocation]);
+  
+  // Handle route creation
+  useEffect(() => {
+    if (mapInstance.current && activeRoute && L.Routing) {
+        if (routeControl.current) {
+            mapInstance.current.removeControl(routeControl.current);
+        }
+        
+        // When a new route begins, set the starting point for distance calculation.
+        instructionStartPoint.current = L.latLng(activeRoute.origin.lat, activeRoute.origin.lng);
+
+        const plan = new L.Routing.Plan([
+            L.latLng(activeRoute.origin.lat, activeRoute.origin.lng),
+            L.latLng(activeRoute.destination.lat, activeRoute.destination.lng)
+        ], { createMarker: () => null });
+
+        routeControl.current = L.Routing.control({
+            plan,
+            routeWhileDragging: false,
+            show: false,
+            lineOptions: { styles: [{ color: '#6366f1', opacity: 0.8, weight: 6 }] }
+        }).addTo(mapInstance.current);
+
+        routeControl.current.on('routesfound', (e: any) => {
+            const routes = e.routes;
+            if (routes.length > 0) {
+                setInstructions(routes[0].instructions);
+                setCurrentInstructionIndex(0);
+            }
+        });
+
+        setTopView('hidden');
+        setSelectedLot(null);
+
+    } else if (!activeRoute && routeControl.current) {
+        mapInstance.current.removeControl(routeControl.current);
+        routeControl.current = null;
+        setInstructions([]);
+    }
+  }, [activeRoute]);
+
+  // Update the start point for the current instruction step when the index changes.
+  useEffect(() => {
+      if (currentInstructionIndex > 0 && instructions.length > currentInstructionIndex) {
+          const prevInstruction = instructions[currentInstructionIndex - 1];
+          if (prevInstruction && prevInstruction.latLng) {
+              instructionStartPoint.current = L.latLng(prevInstruction.latLng.lat, prevInstruction.latLng.lng);
+          }
+      }
+  }, [currentInstructionIndex, instructions]);
+
+
+  // Handle live navigation progress
+  useEffect(() => {
+      if (!userLocation || instructions.length === 0 || currentInstructionIndex >= instructions.length) {
+          return;
+      }
+
+      const currentInstruction = instructions[currentInstructionIndex];
+      if (!currentInstruction || !currentInstruction.latLng || !instructionStartPoint.current) {
+        return;
+      }
+      
+      const userLatLng = L.latLng(userLocation.coords.latitude, userLocation.coords.longitude);
+      
+      // More accurate distance: Calculate remaining distance based on progress in the current step.
+      const totalStepDistance = currentInstruction.distance;
+      const distanceTraveledOnStep = userLatLng.distanceTo(instructionStartPoint.current);
+      const remainingDistance = Math.max(0, totalStepDistance - distanceTraveledOnStep);
+      setLiveDistance(remainingDistance);
+
+      // Advance to next instruction when user is close to the maneuver point.
+      const nextManeuverPoint = L.latLng(currentInstruction.latLng.lat, currentInstruction.latLng.lng);
+      const distanceToNextManeuver = userLatLng.distanceTo(nextManeuverPoint);
+
+      if (distanceToNextManeuver < 20) {
+          if (currentInstructionIndex < instructions.length - 1) {
+              setCurrentInstructionIndex(prev => prev + 1);
+          } else {
+              setTimeout(() => {
+                alert("You have arrived at your destination!");
+                onClearActiveRoute();
+              }, 1000);
+          }
+      }
+  }, [userLocation, instructions, currentInstructionIndex, onClearActiveRoute]);
+
 
   // Handle marker display logic
   useEffect(() => {
     if (!mapInstance.current || !markersLayer.current) return;
     markersLayer.current.clearLayers();
+    
+    if (activeRoute) return;
 
     if (selectedLot && topView !== 'hidden') {
       const center = { lat: selectedLot.location.latitude, lng: selectedLot.location.longitude };
@@ -202,47 +316,7 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
         });
       });
     }
-  }, [selectedLot, parkingLots, topView]);
-
-  // Handle routing
-  useEffect(() => {
-    if (mapInstance.current && route) {
-      const [fromLat, fromLng] = route.from;
-      const [toLat, toLng] = route.to;
-
-      if (typeof fromLat !== 'number' || typeof fromLng !== 'number' || typeof toLat !== 'number' || typeof toLng !== 'number') return;
-      
-      if (routeControl.current) mapInstance.current.removeControl(routeControl.current);
-      
-      routeControl.current = L.Routing.control({
-          waypoints: [ L.latLng(fromLat, fromLng), L.latLng(toLat, toLng) ],
-          routeWhileDragging: false, show: false, addWaypoints: false,
-          lineOptions: { styles: [{ color: '#8b5cf6', opacity: 1, weight: 6 }] }
-      }).addTo(mapInstance.current);
-      setSelectedLot(null);
-      setTopView('hidden');
-    } else if (mapInstance.current && routeControl.current) {
-      mapInstance.current.removeControl(routeControl.current);
-      routeControl.current = null;
-    }
-  }, [route]);
-
-  // Handle arrival detection
-  useEffect(() => {
-    if (userLocation && route) {
-      const { latitude, longitude } = userLocation.coords;
-      const [toLat, toLng] = route.to;
-      
-      if (typeof latitude !== 'number' || typeof longitude !== 'number' || typeof toLat !== 'number' || typeof toLng !== 'number') return;
-
-      const userLatLng = L.latLng(latitude, longitude);
-      const destLatLng = L.latLng(toLat, toLng);
-      if (userLatLng.distanceTo(destLatLng) < 25) {
-          setTopView('arrived');
-          onArrived();
-      }
-    }
-  }, [userLocation, route, onArrived]);
+  }, [selectedLot, parkingLots, topView, activeRoute]);
 
   const handleBackToLots = () => {
     setSelectedLot(null);
@@ -257,7 +331,16 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
   
   const handleOpenReservationModal = () => {
     if (!selectedLot) return;
+    if (unpaidBill) {
+        setTopView('paywall');
+        return;
+    }
     if (isLoggedIn) {
+      if (!user?.carPlate) {
+        alert("Please add your car number plate before making a reservation.");
+        onOpenUserDetailsModal();
+        return;
+      }
       setTopView('reservation');
     } else {
       setTopView('login');
@@ -331,49 +414,78 @@ const MapScreen = ({ parkingLots, onConfirmReservation, userLocation, route, onA
             />
         );
       
-      case 'arrived':
-          return (
-              <ArrivedModal onClose={() => setTopView('hidden')} />
-          );
+      case 'paywall':
+        return (
+            <div className="group relative rounded-xl bg-white dark:bg-slate-950 p-4 shadow-lg dark:shadow-2xl transition-all duration-300 animate-fade-in-fast text-center">
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-pink-500 to-yellow-500 opacity-10 dark:opacity-20 blur-sm"></div>
+                <div className="absolute inset-px rounded-[11px] bg-white dark:bg-slate-950"></div>
+                <div className="relative">
+                    <h2 className="font-bold text-lg text-red-500 dark:text-red-400">Payment Due</h2>
+                    <p className="text-gray-600 dark:text-slate-300 my-2">You have an outstanding bill of <span className="font-bold">${unpaidBill?.amount.toFixed(2)}</span>. Please pay it before making a new reservation.</p>
+                    <div className="flex gap-2 mt-4">
+                        <button onClick={() => setTopView('lotInfo')} className="flex-1 bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors">Cancel</button>
+                        <button onClick={onOpenPayBillModal} className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-2 px-4 rounded-lg transition-transform hover:scale-105">Pay Bill Now</button>
+                    </div>
+                </div>
+            </div>
+        );
 
       default:
         return null;
     }
   };
+  
+  const currentInstructionData = instructions.length > 0 && currentInstructionIndex < instructions.length 
+    ? instructions[currentInstructionIndex] 
+    : null;
 
   return (
     <div className="relative h-full w-full">
       <div ref={mapRef} className="absolute inset-0 bottom-28 bg-gray-200" />
        
-       <div className="absolute top-20 left-4 right-4 z-[401]">
-          {renderTopView()}
-      </div>
+       {activeRoute && (
+          <NavigationInstructions 
+            instruction={currentInstructionData}
+            liveDistance={liveDistance}
+            onClose={onClearActiveRoute}
+          />
+       )}
 
-      <div className="absolute top-20 right-4 z-[401]">
-        <div className="relative">
-          <MapButton onClick={() => setIsLayerMenuOpen(prev => !prev)} title="Map Layers">
-            <LayersIcon />
-          </MapButton>
-          {isLayerMenuOpen && (
-            <div className="absolute top-full right-0 mt-2 w-36 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md rounded-lg shadow-lg animate-fade-in-fast border border-gray-200 dark:border-slate-700">
-              <button onClick={() => handleLayerSelect('default')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'default' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Default</button>
-              <button onClick={() => handleLayerSelect('satellite')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'satellite' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Satellite</button>
-              <button onClick={() => handleLayerSelect('terrain')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'terrain' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Terrain</button>
+       {!activeRoute && (
+          <div className="absolute top-20 left-4 right-4 z-[401]">
+              {renderTopView()}
+          </div>
+       )}
+
+      {!activeRoute && (
+        <>
+            <div className="absolute top-20 right-4 z-[401]">
+                <div className="relative">
+                <MapButton onClick={() => setIsLayerMenuOpen(prev => !prev)} title="Map Layers">
+                    <LayersIcon />
+                </MapButton>
+                {isLayerMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-36 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md rounded-lg shadow-lg animate-fade-in-fast border border-gray-200 dark:border-slate-700">
+                    <button onClick={() => handleLayerSelect('default')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'default' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Default</button>
+                    <button onClick={() => handleLayerSelect('satellite')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'satellite' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Satellite</button>
+                    <button onClick={() => handleLayerSelect('terrain')} className={`w-full text-left p-3 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 ${activeLayer === 'terrain' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-800 dark:text-white'}`}>Terrain</button>
+                    </div>
+                )}
+                </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      <div className="absolute bottom-28 right-4 z-[401] flex flex-col gap-4">
-         <MapButton onClick={handleRecenter} title="Recenter">
-            <LocationIcon />
-         </MapButton>
-         {topView === 'lotInfo' && !route && (
-            <button onClick={handleOpenReservationModal} title="Reserve a Spot" className="bg-gradient-to-r from-indigo-500 to-purple-500 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg animate-pulse transition-transform hover:scale-110">
-                <CarIcon />
-            </button>
-         )}
-      </div>
+            <div className="absolute bottom-28 right-4 z-[401] flex flex-col gap-4">
+                <MapButton onClick={handleRecenter} title="Recenter">
+                    <LocationIcon />
+                </MapButton>
+                {topView === 'lotInfo' && (
+                    <button onClick={handleOpenReservationModal} title="Reserve a Spot" className="bg-gradient-to-r from-indigo-500 to-purple-500 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg animate-pulse transition-transform hover:scale-110">
+                        <CarIcon />
+                    </button>
+                )}
+            </div>
+        </>
+       )}
     </div>
   );
 };

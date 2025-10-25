@@ -1,9 +1,14 @@
 
-import type { Timestamp, GeoPoint } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat type imports to resolve missing export errors.
+import type firebase from 'firebase/compat/app';
 
 export type ActiveTab = 'home' | 'map' | 'notifications' | 'settings' | 'notices';
 
 export type Theme = 'dark' | 'light';
+
+// FIX: Defined Timestamp and GeoPoint types for v8 compat SDK.
+export type Timestamp = firebase.firestore.Timestamp;
+export type GeoPoint = firebase.firestore.GeoPoint;
 
 export interface Reservation {
   id: string;
@@ -55,7 +60,7 @@ export interface ParkingLot {
 export interface Notification {
   id:string;
   userId: string;
-  type: 'RESERVED' | 'TIME_EXPIRED' | 'PAYMENT_CONFIRMED' | 'GENERIC' | 'REVIEW_REPLY';
+  type: 'RESERVED' | 'TIME_EXPIRED' | 'PAYMENT_CONFIRMED' | 'GENERIC' | 'REVIEW_REPLY' | 'BILL_DUE';
   message: string;
   isRead: boolean;
   timestamp: Timestamp; // Changed to Firestore Timestamp
@@ -65,6 +70,8 @@ export interface Notification {
     amountPaid?: number;
     hoursLeft?: number;
     reviewId?: string;
+    billAmount?: number;
+    billId?: string;
   };
 }
 
@@ -86,6 +93,17 @@ export interface Review {
   timestamp: Timestamp;
   adminReply?: string;
 }
+
+export interface Bill {
+  id: string;
+  userId: string;
+  reservationId?: string;
+  amount: number;
+  status: 'unpaid' | 'paid';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 
 export interface WeeklyReservations {
   day: string;

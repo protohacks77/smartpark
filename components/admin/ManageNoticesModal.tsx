@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { collection, addDoc, Timestamp, deleteDoc, doc } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 import { db } from '../../services/firebase';
 import type { Notice } from '../../types';
 import { TrashIcon, SpinnerIcon } from '../Icons';
@@ -32,10 +33,11 @@ const ManageNoticesModal = ({ isOpen, onClose, notices }: ManageNoticesModalProp
     }
     setIsProcessing(true);
     try {
-      await addDoc(collection(db, 'notices'), {
+      // FIX: Use v8 compat syntax for addDoc, collection, and Timestamp.
+      await db.collection('notices').add({
         title,
         content,
-        timestamp: Timestamp.now(),
+        timestamp: firebase.firestore.Timestamp.now(),
       });
       setView('list');
     } catch (error) {
@@ -49,7 +51,8 @@ const ManageNoticesModal = ({ isOpen, onClose, notices }: ManageNoticesModalProp
   const handleDelete = async (noticeId: string) => {
     if (window.confirm('Are you sure you want to delete this notice?')) {
         try {
-            await deleteDoc(doc(db, 'notices', noticeId));
+            // FIX: Use v8 compat syntax for deleteDoc and doc.
+            await db.collection('notices').doc(noticeId).delete();
         } catch (error) {
             console.error('Error deleting notice:', error);
             alert('Failed to delete notice.');

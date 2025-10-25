@@ -1,4 +1,3 @@
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase';
 
 const ADMIN_EMAIL = 'admin@gmail.com';
@@ -12,7 +11,8 @@ export const createDefaultAdmin = async () => {
   }
 
   try {
-    await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
+    // FIX: Use v8 compat syntax for createUserWithEmailAndPassword.
+    await auth.createUserWithEmailAndPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
     console.log('Default admin user created successfully.');
   } catch (error: any) {
     // If the user already exists, we can safely ignore the error.

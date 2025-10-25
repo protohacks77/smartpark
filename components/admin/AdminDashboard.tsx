@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
 import { db } from '../../services/firebase';
 import type { User, Reservation, ParkingLot, Theme, Notice, Review } from '../../types';
 import {
@@ -63,44 +63,60 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{lot: ParkingLot, slotId?: string} | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
   const [revenueFilter, setRevenueFilter] = useState<'day' | 'week' | 'month'>('week');
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
+    if (toastMessage) {
+        const timer = setTimeout(() => setToastMessage(null), 3000);
+        return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+  
+    // Fetch non-realtime data
+    const fetchStaticData = async () => {
       try {
-        const usersPromise = getDocs(collection(db, 'users'));
-        const reservationsPromise = getDocs(collection(db, 'reservations'));
-        const parkingLotsPromise = getDocs(collection(db, 'parkingLots'));
-
-        const [usersSnapshot, reservationsSnapshot, parkingLotsSnapshot] = await Promise.all([
-          usersPromise,
-          reservationsPromise,
-          parkingLotsPromise,
-        ]);
-
+        // FIX: Use v8 compat syntax for getDocs and collection.
+        const usersPromise = db.collection('users').get();
+        const reservationsPromise = db.collection('reservations').get();
+        const [usersSnapshot, reservationsSnapshot] = await Promise.all([usersPromise, reservationsPromise]);
         setUsers(usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
         setReservations(reservationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[]);
-        setParkingLots(parkingLotsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ParkingLot[]);
-        
       } catch (err) {
-        console.error("Failed to fetch dashboard data:", err);
-        setError("Failed to load dashboard data. Please try refreshing the page.");
-      } finally {
-        setIsLoading(false);
+        console.error("Failed to fetch static dashboard data:", err);
+        setError("Failed to load user or reservation data.");
       }
     };
-
-    fetchData();
-  }, []);
+  
+    // Set up real-time listener for parking lots
+    // FIX: Use v8 compat syntax for onSnapshot and collection.
+    const unsubscribeLots = db.collection('parkingLots').onSnapshot((snapshot) => {
+      setParkingLots(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ParkingLot[]);
+      // After the first successful fetch of lots, fetch the rest and hide loader
+      if (isLoading) {
+        fetchStaticData().finally(() => setIsLoading(false));
+      }
+    }, (err) => {
+      console.error("Failed to listen for parking lots:", err);
+      setError("Failed to load parking lot data.");
+      setIsLoading(false);
+    });
+  
+    return () => unsubscribeLots();
+  }, []); // Should run only once on mount
   
   // Real-time listener for notices
   useEffect(() => {
-    const q = query(collection(db, 'notices'), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    // FIX: Use v8 compat syntax for query, collection, and orderBy.
+    const q = db.collection('notices').orderBy('timestamp', 'desc');
+    // FIX: Use v8 compat syntax for onSnapshot.
+    const unsubscribe = q.onSnapshot((querySnapshot) => {
         setNotices(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notice[]);
     }, (err) => {
         console.error("Failed to fetch notices in real-time:", err);
@@ -112,8 +128,10 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
 
   // Real-time listener for reviews
   useEffect(() => {
-    const q = query(collection(db, 'reviews'), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    // FIX: Use v8 compat syntax for query, collection, and orderBy.
+    const q = db.collection('reviews').orderBy('timestamp', 'desc');
+    // FIX: Use v8 compat syntax for onSnapshot.
+    const unsubscribe = q.onSnapshot((querySnapshot) => {
         setReviews(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Review[]);
     }, (err) => {
         console.error("Failed to fetch reviews in real-time:", err);
@@ -193,6 +211,11 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-white font-sans">
+      {toastMessage && (
+        <div className="fixed top-5 right-5 bg-emerald-500 text-white py-2 px-4 rounded-lg shadow-lg z-[101] animate-fade-in">
+            {toastMessage}
+        </div>
+      )}
       <header className="p-4 flex justify-between items-center bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200 dark:border-slate-800">
         <h1 className="text-2xl font-bold text-indigo-500 dark:text-indigo-400">Admin Dashboard</h1>
         <div className="flex items-center gap-4">
@@ -269,7 +292,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
         isOpen={isParkingModalOpen}
         onClose={() => setIsParkingModalOpen(false)}
         parkingLots={parkingLots}
-        onSave={() => { /* Real-time listener will update UI */ }}
+        onSaveSuccess={(message) => setToastMessage(message)}
       />
       
       <ViewAllUsersModal

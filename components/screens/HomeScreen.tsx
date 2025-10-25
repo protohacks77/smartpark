@@ -1,6 +1,6 @@
 
-import React, { useMemo } from 'react';
-import { CarIcon, WalletIcon, LocationIcon, CheckmarkCircleIcon, CloseCircleIcon, ClockIcon, StarFilledIcon } from '../Icons';
+import React, { useMemo, useState } from 'react';
+import { CarIcon, WalletIcon, LocationIcon, CheckmarkCircleIcon, CloseCircleIcon, ClockIcon, StarFilledIcon, SearchIcon } from '../Icons';
 import type { UserWithReservations, ParkingLot } from '../../types';
 
 interface HomeScreenProps {
@@ -14,6 +14,8 @@ interface HomeScreenProps {
 }
 
 interface InfoCardProps {
+  // FIX: Add children prop to allow this component to wrap other elements.
+  children: React.ReactNode;
   className?: string;
 }
 
@@ -31,6 +33,8 @@ const InfoCard: React.FC<InfoCardProps> = ({ children, className = "" }) => {
 
 
 const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveReview, onToggleFavorite, onSelectLotOnMap }: HomeScreenProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  
   const totalSlots = parkingLots.reduce((acc, lot) => acc + lot.slots.length, 0);
   const occupiedSlots = parkingLots.reduce((acc, lot) => acc + lot.slots.filter(s => s.isOccupied).length, 0);
   const hasParkedBefore = user?.reservations?.some(r => r.status === 'completed' || r.status === 'expired');
@@ -55,10 +59,64 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
       .filter((p): p is ParkingLot => !!p);
   }, [user?.favoriteParkingLots, parkingLots]);
 
+  const filteredLots = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return null;
+    }
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return parkingLots.filter(lot =>
+      lot.name.toLowerCase().includes(lowerCaseQuery) ||
+      lot.address.toLowerCase().includes(lowerCaseQuery)
+    );
+  }, [searchQuery, parkingLots]);
+
+  const animationDelayOffset = filteredLots ? 1 : 0;
+
   return (
     <div className="p-4 pt-24 pb-28 space-y-6 overflow-y-auto h-full animate-fade-in">
-      {/* Card 1: User Details */}
+      {/* Search Bar Card */}
       <InfoCard className="animate-slide-in-1">
+        <h2 className="font-bold text-lg mb-2 text-indigo-500 dark:text-indigo-400">Find a Spot</h2>
+        <div className="relative">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 w-5 h-5"/>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name or address..."
+            className="w-full bg-transparent text-gray-900 dark:text-white py-2 pl-10 focus:outline-none"
+          />
+        </div>
+      </InfoCard>
+
+      {/* Search Results Card (conditional) */}
+      {filteredLots && (
+        <InfoCard className="animate-slide-in-2">
+          <h2 className="font-bold text-lg mb-3 text-indigo-500 dark:text-indigo-400">Search Results ({filteredLots.length})</h2>
+          {filteredLots.length > 0 ? (
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+              {filteredLots.map(lot => (
+                <button
+                  key={lot.id}
+                  onClick={() => onSelectLotOnMap(lot.id)}
+                  className="w-full text-left bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-4"
+                >
+                  <LocationIcon className="w-6 h-6 text-indigo-400 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">{lot.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">{lot.address}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 dark:text-slate-400 text-center py-4">No parking lots found.</p>
+          )}
+        </InfoCard>
+      )}
+
+      {/* Card 1: User Details */}
+      <InfoCard className={`animate-slide-in-${2 + animationDelayOffset}`}>
         <h2 className="font-bold text-lg mb-2 text-indigo-500 dark:text-indigo-400">Your Details</h2>
         {user && (user.carPlate || user.ecocashNumber) ? (
           <>
@@ -85,7 +143,7 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
       </InfoCard>
 
       {/* Card 2: Parking Availability */}
-      <InfoCard className="animate-slide-in-2">
+      <InfoCard className={`animate-slide-in-${3 + animationDelayOffset}`}>
         <h2 className="font-bold text-lg mb-3 text-indigo-500 dark:text-indigo-400">Live Availability</h2>
         <div className="flex justify-around">
           <div className="text-center">
@@ -106,7 +164,7 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
       </InfoCard>
 
       {/* Card 3: Parking History */}
-      <InfoCard className="animate-slide-in-3">
+      <InfoCard className={`animate-slide-in-${4 + animationDelayOffset}`}>
         <h2 className="font-bold text-lg mb-3 text-indigo-500 dark:text-indigo-400">Recent Parking</h2>
         {user?.reservations && user.reservations.length > 0 ? (
           <div className="space-y-3">
@@ -130,7 +188,7 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
 
       {/* Card: Favorite Spots */}
       {favoriteLots.length > 0 && (
-        <InfoCard className="animate-slide-in-4">
+        <InfoCard className={`animate-slide-in-${5 + animationDelayOffset}`}>
           <h2 className="font-bold text-lg mb-3 text-indigo-500 dark:text-indigo-400">Favorite Spots</h2>
           <div className="space-y-3">
             {favoriteLots.map(lot => (
@@ -150,7 +208,7 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
 
       {/* Card: Frequently Visited */}
       {frequentLots.length > 0 && (
-        <InfoCard className="animate-slide-in-5">
+        <InfoCard className={`animate-slide-in-${6 + animationDelayOffset}`}>
           <h2 className="font-bold text-lg mb-3 text-indigo-500 dark:text-indigo-400">Frequently Visited</h2>
           <div className="space-y-3">
             {frequentLots.map(lot => (
@@ -166,7 +224,7 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
       )}
       
       {/* Card 4: Find Parking */}
-      <InfoCard className="animate-slide-in-6 text-center">
+      <InfoCard className={`animate-slide-in-${7 + animationDelayOffset} text-center`}>
          <h2 className="font-bold text-lg mb-2 text-indigo-500 dark:text-indigo-400">Ready to Park?</h2>
          <p className="text-gray-500 dark:text-slate-400 mb-4">Find the nearest available parking spot now.</p>
          <button onClick={onFindParking} className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
@@ -176,7 +234,7 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
 
       {/* Card 5: Leave a review */}
       {hasParkedBefore && (
-        <InfoCard className="animate-slide-in-7">
+        <InfoCard className={`animate-slide-in-${8 + animationDelayOffset}`}>
           <h2 className="font-bold text-lg mb-2 text-indigo-500 dark:text-indigo-400">Feedback</h2>
           <p className="text-gray-500 dark:text-slate-400 mb-4">Share your experience to help us improve.</p>
           <button onClick={onLeaveReview} className="w-full bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors">

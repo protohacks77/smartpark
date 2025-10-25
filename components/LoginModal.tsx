@@ -1,11 +1,7 @@
 
 import React, { useState } from 'react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  GoogleAuthProvider 
-} from 'firebase/auth';
+// FIX: Switched to Firebase v8 compat imports for auth methods to resolve type mismatch errors.
+import firebase from 'firebase/compat/app';
 import { auth } from '../services/firebase';
 import { PersonIcon, LockClosedIcon, GoogleLogoIcon, SpinnerIcon } from './Icons';
 
@@ -31,9 +27,11 @@ const LoginModal = ({ isOpen = true, onClose, onSuccess, onAdminLoginClick }: Lo
     setError('');
     try {
       if (isLoginView) {
-        await signInWithEmailAndPassword(auth, email, password);
+        // FIX: Use v8 compat syntax for signInWithEmailAndPassword.
+        await auth.signInWithEmailAndPassword(email, password);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        // FIX: Use v8 compat syntax for createUserWithEmailAndPassword.
+        await auth.createUserWithEmailAndPassword(email, password);
       }
       onSuccess();
     } catch (err: any) {
@@ -47,7 +45,8 @@ const LoginModal = ({ isOpen = true, onClose, onSuccess, onAdminLoginClick }: Lo
     setIsLoading(true);
     setError('');
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      // FIX: Use v8 compat syntax for signInWithPopup and GoogleAuthProvider.
+      await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
       onSuccess();
     } catch (err: any) {
       setError(err.message);

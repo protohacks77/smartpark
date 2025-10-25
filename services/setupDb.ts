@@ -1,5 +1,6 @@
 
-import { collection, getDocs, writeBatch, doc, GeoPoint } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 import { db } from './firebase';
 import type { ParkingLot, ParkingSlot } from '../types';
 
@@ -7,19 +8,22 @@ const sampleParkingLotsData = [
   {
     name: 'Avondale Shopping Centre',
     address: 'Lanark Road, Harare',
-    location: new GeoPoint(-17.7968, 31.0335),
+    // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
+    location: new firebase.firestore.GeoPoint(-17.7968, 31.0335),
     hourlyRate: 1.5,
   },
   {
     name: 'Eastgate Shopping Mall',
     address: 'Robert Mugabe Rd, Harare',
-    location: new GeoPoint(-17.8317, 31.0539),
+    // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
+    location: new firebase.firestore.GeoPoint(-17.8317, 31.0539),
     hourlyRate: 2.0,
   },
   {
     name: "Sam Levy's Village",
     address: 'Borrowdale Road, Harare',
-    location: new GeoPoint(-17.7788, 31.0858),
+    // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
+    location: new firebase.firestore.GeoPoint(-17.7788, 31.0858),
     hourlyRate: 2.5,
   },
 ];
@@ -27,8 +31,9 @@ const sampleParkingLotsData = [
 const TOTAL_SLOTS_PER_LOT = 20;
 
 export const setupInitialData = async (): Promise<string> => {
-  const parkingLotsRef = collection(db, 'parkingLots');
-  const snapshot = await getDocs(parkingLotsRef);
+  // FIX: Use v8 compat syntax for collection and getDocs.
+  const parkingLotsRef = db.collection('parkingLots');
+  const snapshot = await parkingLotsRef.get();
 
   if (!snapshot.empty) {
     const message = 'Database already contains parking lot data. Setup skipped.';
@@ -36,12 +41,14 @@ export const setupInitialData = async (): Promise<string> => {
     return message;
   }
 
-  const batch = writeBatch(db);
+  // FIX: Use v8 compat syntax for writeBatch.
+  const batch = db.batch();
 
   try {
     console.log('Setting up initial database data...');
     for (const lotData of sampleParkingLotsData) {
-      const lotDocRef = doc(collection(db, 'parkingLots'));
+      // FIX: Use v8 compat syntax for doc and collection.
+      const lotDocRef = db.collection('parkingLots').doc();
       
       const slots: ParkingSlot[] = [];
       for (let i = 1; i <= TOTAL_SLOTS_PER_LOT; i++) {
@@ -67,9 +74,11 @@ export const setupInitialData = async (): Promise<string> => {
         slots: slots,
       };
       
+      // FIX: Use v8 compat syntax for batch.set.
       batch.set(lotDocRef, newLot);
     }
 
+    // FIX: Use v8 compat syntax for batch.commit.
     await batch.commit();
     const successMessage = 'Successfully initialized database with sample parking lots and slots!';
     console.log(successMessage);

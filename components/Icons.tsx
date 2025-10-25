@@ -48,6 +48,8 @@ export const NewspaperIcon = ({ className = "w-6 h-6" }) => <ion-icon name="news
 export const StarIcon = ({ className = "w-6 h-6" }) => <ion-icon name="star-outline" class={className}></ion-icon>;
 export const StarFilledIcon = ({ className = "w-6 h-6" }) => <ion-icon name="star" class={className}></ion-icon>;
 export const ChatbubblesIcon = ({ className = "w-6 h-6" }) => <ion-icon name="chatbubbles-outline" class={className}></ion-icon>;
+export const DiamondIcon = ({ className = "w-6 h-6" }) => <ion-icon name="diamond-outline" class={className}></ion-icon>;
+export const SearchIcon = ({ className = "w-6 h-6" }) => <ion-icon name="search-outline" class={className}></ion-icon>;
 
 
 export const SpinnerIcon = ({ className = "w-6 h-6" }) => (

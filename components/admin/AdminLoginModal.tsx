@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../services/firebase';
 import { PersonIcon, LockClosedIcon, SpinnerIcon } from '../Icons';
 
@@ -25,7 +24,8 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
     try {
       // In a real app, you'd check for custom admin claims after login.
       // App.tsx's onAuthStateChanged listener will handle this check.
-      await signInWithEmailAndPassword(auth, email, password);
+      // FIX: Use v8 compat syntax for signInWithEmailAndPassword.
+      await auth.signInWithEmailAndPassword(email, password);
       // The onSuccess callback will be called from App.tsx after claims are verified.
     } catch (err: any) {
       setError('Invalid credentials or not an admin account.');

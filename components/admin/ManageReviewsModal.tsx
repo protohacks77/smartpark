@@ -1,13 +1,16 @@
+
 import React, { useState } from 'react';
 import type { Review } from '../../types';
 import { TrashIcon, SpinnerIcon } from '../Icons';
-import { doc, updateDoc, deleteDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 import { db } from '../../services/firebase';
 
 const StarDisplay = ({ rating }: { rating: number }) => (
   <div className="flex">
+    {/* FIX: Moved the `key` prop to a wrapper element (`span`) instead of passing it directly to the `ion-icon` web component, which does not accept a `key` prop. */}
     {[...Array(5)].map((_, i) => (
-      <ion-icon key={i} name={i < rating ? 'star' : 'star-outline'} class="w-5 h-5 text-yellow-400"></ion-icon>
+      <span key={i}><ion-icon name={i < rating ? 'star' : 'star-outline'} class="w-5 h-5 text-yellow-400"></ion-icon></span>
     ))}
   </div>
 );
@@ -28,16 +31,18 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review }) => {
     const handleReplySave = async () => {
         setIsSaving(true);
         try {
-            const reviewDocRef = doc(db, 'reviews', review.id);
-            await updateDoc(reviewDocRef, { adminReply: replyText.trim() });
+            // FIX: Use v8 compat syntax for doc and updateDoc.
+            const reviewDocRef = db.collection('reviews').doc(review.id);
+            await reviewDocRef.update({ adminReply: replyText.trim() });
             
             // Send a notification to the user
-            await addDoc(collection(db, 'notifications'), {
+            // FIX: Use v8 compat syntax for addDoc, collection, and Timestamp.
+            await db.collection('notifications').add({
                 userId: review.userId,
                 type: 'REVIEW_REPLY',
                 message: `An admin has replied to your review for "${review.parkingLotName}".`,
                 isRead: false,
-                timestamp: Timestamp.now(),
+                timestamp: firebase.firestore.Timestamp.now(),
                 data: {
                     reviewId: review.id
                 }
@@ -56,7 +61,8 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review }) => {
         if (window.confirm("Are you sure you want to delete this review permanently?")) {
             setIsDeleting(true);
             try {
-                await deleteDoc(doc(db, 'reviews', review.id));
+                // FIX: Use v8 compat syntax for deleteDoc and doc.
+                await db.collection('reviews').doc(review.id).delete();
             } catch (error) {
                 console.error("Error deleting review: ", error);
                 alert("Failed to delete review.");

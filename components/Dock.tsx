@@ -93,7 +93,8 @@ const Dock = ({ activeTab, setActiveTab, hasUnreadNotices, hasUnreadNotification
 
           {tabs.map((tab, index) => (
             <DockItem 
-              ref={el => buttonRefs.current[index] = el}
+              // FIX: The ref callback implicitly returned the assigned element, which is not a valid Ref type. Wrapped the assignment in curly braces to ensure it returns void.
+              ref={el => { buttonRefs.current[index] = el; }}
               key={tab.id}
               icon={tab.icon}
               label={tab.label}

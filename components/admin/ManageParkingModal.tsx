@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { doc, setDoc, addDoc, collection, updateDoc, deleteDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 import { db } from '../../services/firebase';
 import type { ParkingLot, ParkingSlot } from '../../types';
-import { GeoPoint } from 'firebase/firestore';
 import SlotEditModal from './SlotEditModal';
-import { TrashIcon } from '../Icons';
+import { TrashIcon, SpinnerIcon } from '../Icons';
 import ConfirmationModal from './ConfirmationModal';
 
-const LotForm = ({ lot, onSave, onCancel, onDelete }: { lot: Partial<ParkingLot>, onSave: (lotData: ParkingLot) => void, onCancel: () => void, onDelete: (lotId: string) => void }) => {
-  const [formData, setFormData] = useState<ParkingLot>({
+interface LotFormData {
+    id: string;
+    name: string;
+    address: string;
+    lat: number | string;
+    lng: number | string;
+    hourlyRate: number | string;
+    slots: ParkingSlot[];
+}
+
+const LotForm = ({ lot, onSave, onCancel, onDelete, isSaving }: { lot: Partial<ParkingLot>, onSave: (lotData: ParkingLot) => void, onCancel: () => void, onDelete: (lotId: string) => void, isSaving: boolean }) => {
+  const [formData, setFormData] = useState<LotFormData>({
     id: lot?.id || '',
     name: lot?.name || '',
     address: lot?.address || '',
-    location: lot?.location instanceof GeoPoint ? lot.location : new GeoPoint(0, 0),
+    lat: lot?.location?.latitude ?? 0,
+    lng: lot?.location?.longitude ?? 0,
     hourlyRate: lot?.hourlyRate || 1,
     slots: lot?.slots || [],
   });
@@ -24,7 +35,8 @@ const LotForm = ({ lot, onSave, onCancel, onDelete }: { lot: Partial<ParkingLot>
         id: lot?.id || '',
         name: lot?.name || '',
         address: lot?.address || '',
-        location: lot?.location instanceof GeoPoint ? lot.location : new GeoPoint(0, 0),
+        lat: lot?.location?.latitude ?? 0,
+        lng: lot?.location?.longitude ?? 0,
         hourlyRate: lot?.hourlyRate || 1,
         slots: lot?.slots || [],
     });
@@ -32,20 +44,47 @@ const LotForm = ({ lot, onSave, onCancel, onDelete }: { lot: Partial<ParkingLot>
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
-    if (name === 'lat' || name === 'lng') {
-        const newCoord = parseFloat(value) || 0;
-        setFormData(prev => ({
-            ...prev,
-            location: new GeoPoint(name === 'lat' ? newCoord : prev.location.latitude, name === 'lng' ? newCoord : prev.location.longitude)
-        }));
+     if (type === 'number') {
+        // Allow empty string or just a negative sign for better UX during input
+        if (value === '' || value === '-') {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: parseFloat(value) }));
+        }
     } else {
-        setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    const lat = parseFloat(String(formData.lat));
+    const lng = parseFloat(String(formData.lng));
+    const hourlyRate = parseFloat(String(formData.hourlyRate));
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+        alert('Latitude must be a valid number between -90 and 90.');
+        return;
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+        alert('Longitude must be a valid number between -180 and 180.');
+        return;
+    }
+     if (isNaN(hourlyRate) || hourlyRate < 0) {
+        alert('Hourly rate must be a valid positive number.');
+        return;
+    }
+
+    const lotToSave: ParkingLot = {
+        id: formData.id,
+        name: formData.name,
+        address: formData.address,
+        hourlyRate: hourlyRate,
+        slots: formData.slots,
+        // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
+        location: new firebase.firestore.GeoPoint(lat, lng),
+    };
+    onSave(lotToSave);
   };
   
   const handleOpenSlotModal = (slotToEdit: Partial<ParkingSlot> | null) => {
@@ -110,11 +149,11 @@ const LotForm = ({ lot, onSave, onCancel, onDelete }: { lot: Partial<ParkingLot>
             <div className="grid grid-cols-2 gap-4">
                  <div>
                     <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Latitude</label>
-                    <input type="number" step="any" name="lat" value={formData.location.latitude} onChange={handleChange} className={inputStyle} required />
+                    <input type="number" step="any" name="lat" value={formData.lat} onChange={handleChange} className={inputStyle} required />
                 </div>
                  <div>
                     <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Longitude</label>
-                    <input type="number" step="any" name="lng" value={formData.location.longitude} onChange={handleChange} className={inputStyle} required />
+                    <input type="number" step="any" name="lng" value={formData.lng} onChange={handleChange} className={inputStyle} required />
                 </div>
             </div>
             <div>
@@ -149,8 +188,8 @@ const LotForm = ({ lot, onSave, onCancel, onDelete }: { lot: Partial<ParkingLot>
                 <button type="button" onClick={onCancel} className="flex-1 bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-800 dark:text-white font-semibold py-3 px-4 rounded-lg transition-colors">
                     Cancel
                 </button>
-                <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
-                    Save Changes
+                <button type="submit" disabled={isSaving} className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105 disabled:opacity-50 flex items-center justify-center">
+                    {isSaving ? <SpinnerIcon className="w-6 h-6" /> : 'Save Changes'}
                 </button>
             </div>
         </form>
@@ -160,7 +199,8 @@ const LotForm = ({ lot, onSave, onCancel, onDelete }: { lot: Partial<ParkingLot>
             onClose={() => setIsSlotModalOpen(false)}
             onSave={handleSaveSlot}
             slot={editingSlot}
-            lotLocation={formData.location}
+            // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
+            lotLocation={new firebase.firestore.GeoPoint(Number(formData.lat), Number(formData.lng))}
             existingSlotIds={formData.slots.map(s => s.id).filter(id => id !== editingSlot?.id)}
         />
     </div>
@@ -172,15 +212,16 @@ interface ManageParkingModalProps {
   isOpen: boolean;
   onClose: () => void;
   parkingLots: ParkingLot[];
-  onSave: (updatedLots: ParkingLot[]) => void;
+  onSaveSuccess: (message: string) => void;
 }
 
-const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSave }: ManageParkingModalProps) => {
+const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSaveSuccess }: ManageParkingModalProps) => {
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingLot, setEditingLot] = useState<Partial<ParkingLot>>({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [lotToDeleteId, setLotToDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -202,21 +243,25 @@ const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSave }: ManagePark
   };
   
   const handleSaveLot = async (lotData: ParkingLot) => {
+    setIsSaving(true);
     try {
         if (lotData.id) { // Editing existing lot
-            const lotDocRef = doc(db, 'parkingLots', lotData.id);
-            await setDoc(lotDocRef, lotData, { merge: true });
+            // FIX: Use v8 compat syntax for doc and setDoc.
+            const lotDocRef = db.collection('parkingLots').doc(lotData.id);
+            await lotDocRef.set(lotData, { merge: true });
         } else { // Creating new lot
-            await addDoc(collection(db, 'parkingLots'), {
-                ...lotData,
-                id: undefined // Firestore will generate it
-            });
+            const { id, ...newLotData } = lotData;
+            // FIX: Use v8 compat syntax for addDoc and collection.
+            await db.collection('parkingLots').add(newLotData);
         }
+        onSaveSuccess("Parking lot saved successfully!");
         setView('list');
         setEditingLot({});
     } catch (error) {
         console.error("Failed to save parking lot: ", error);
         alert("Could not save changes.");
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -230,26 +275,24 @@ const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSave }: ManagePark
 
     setIsDeleting(true);
     try {
-      // Create a batch to perform multiple writes as a single atomic unit.
-      const batch = writeBatch(db);
-
-      // 1. Delete the parking lot document.
-      const lotDocRef = doc(db, 'parkingLots', lotToDeleteId);
+      // FIX: Use v8 compat syntax for writeBatch.
+      const batch = db.batch();
+      // FIX: Use v8 compat syntax for doc.
+      const lotDocRef = db.collection('parkingLots').doc(lotToDeleteId);
       batch.delete(lotDocRef);
 
-      // 2. Find and delete all associated reservations.
-      const reservationsQuery = query(
-        collection(db, 'reservations'),
-        where('parkingLotId', '==', lotToDeleteId)
-      );
-      const reservationsSnapshot = await getDocs(reservationsQuery);
+      // FIX: Use v8 compat syntax for query, collection, and where.
+      const reservationsQuery = db.collection('reservations')
+        .where('parkingLotId', '==', lotToDeleteId);
+
+      // FIX: Use v8 compat syntax for getDocs.
+      const reservationsSnapshot = await reservationsQuery.get();
       reservationsSnapshot.forEach((doc) => {
         batch.delete(doc.ref);
       });
 
-      // Commit the batch.
       await batch.commit();
-      
+      onSaveSuccess("Parking lot deleted successfully!");
       setView('list');
     } catch (error) {
       console.error("Failed to delete parking lot and its reservations: ", error);
@@ -301,7 +344,7 @@ const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSave }: ManagePark
               )}
               
               {view === 'form' && (
-                  <LotForm lot={editingLot} onSave={handleSaveLot} onCancel={() => setView('list')} onDelete={handleDeleteLot} />
+                  <LotForm lot={editingLot} onSave={handleSaveLot} onCancel={() => setView('list')} onDelete={handleDeleteLot} isSaving={isSaving} />
               )}
               
           </div>

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
 import { db } from '../../services/firebase';
 import { PersonIcon, CarIcon, WalletIcon, LogOutIcon, SpinnerIcon } from '../Icons';
 import type { User } from '../../types';
@@ -13,6 +13,8 @@ interface SettingsScreenProps {
 }
 
 interface InfoCardProps {
+  // FIX: Add children prop to allow this component to wrap other elements.
+  children: React.ReactNode;
   className?: string;
 }
 
@@ -43,10 +45,12 @@ const SettingsScreen = ({ user, onLogout, onAdminLogin, onUserDetailsUpdate }: S
   const handleSaveChanges = async () => {
     if (!user) return;
     setIsSaving(true);
-    const userDocRef = doc(db, 'users', user.uid);
+    // FIX: Use v8 compat syntax for doc.
+    const userDocRef = db.collection('users').doc(user.uid);
     try {
       const updatedDetails = { username, carPlate, ecocashNumber };
-      await updateDoc(userDocRef, updatedDetails);
+      // FIX: Use v8 compat syntax for updateDoc.
+      await userDocRef.update(updatedDetails);
       onUserDetailsUpdate({ ...user, ...updatedDetails });
     } catch (error) {
       console.error("Error updating document: ", error);

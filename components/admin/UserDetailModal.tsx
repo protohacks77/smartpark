@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, doc, updateDoc, deleteDoc, addDoc, Timestamp } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 import { db } from '../../services/firebase';
 import type { User, Reservation } from '../../types';
 import { PersonIcon, CarIcon, WalletIcon, ClockIcon, LocationIcon, SpinnerIcon, TrashIcon } from '../Icons';
@@ -44,6 +45,7 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
   const [isMessaging, setIsMessaging] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isBilling, setIsBilling] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -63,11 +65,11 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
       const fetchReservations = async () => {
         setIsLoading(true);
         try {
-          const q = query(
-            collection(db, 'reservations'),
-            where('userId', '==', user.uid)
-          );
-          const querySnapshot = await getDocs(q);
+          // FIX: Use v8 compat syntax for query, collection, and where.
+          const q = db.collection('reservations')
+            .where('userId', '==', user.uid);
+          // FIX: Use v8 compat syntax for getDocs.
+          const querySnapshot = await q.get();
           const userReservations = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[];
           // Sort client-side to avoid needing a composite index in Firestore
           userReservations.sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
@@ -89,9 +91,11 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
 
   const handleSave = async () => {
     setIsProcessing(true);
-    const userDocRef = doc(db, 'users', user.uid);
+    // FIX: Use v8 compat syntax for doc.
+    const userDocRef = db.collection('users').doc(user.uid);
     try {
-        await updateDoc(userDocRef, formData);
+        // FIX: Use v8 compat syntax for updateDoc.
+        await userDocRef.update(formData);
         setIsEditing(false);
     } catch (error) {
         console.error("Error updating user:", error);
@@ -105,7 +109,8 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
     if (window.confirm(`Are you sure you want to delete user ${user.username}? This action cannot be undone.`)) {
         setIsProcessing(true);
         try {
-            await deleteDoc(doc(db, 'users', user.uid));
+            // FIX: Use v8 compat syntax for deleteDoc and doc.
+            await db.collection('users').doc(user.uid).delete();
             // In a real-world scenario, you might want a cloud function to delete associated data (reservations, auth user, etc.)
             onClose();
         } catch (error) {
@@ -129,9 +134,11 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
             type: 'GENERIC' as const,
             message: messageText.trim(),
             isRead: false,
-            timestamp: Timestamp.now(),
+            // FIX: Use v8 compat syntax for Timestamp.
+            timestamp: firebase.firestore.Timestamp.now(),
         };
-        await addDoc(collection(db, 'notifications'), newNotification);
+        // FIX: Use v8 compat syntax for addDoc and collection.
+        await db.collection('notifications').add(newNotification);
         
         // Reset form
         setMessageText('');
@@ -143,6 +150,52 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
         alert("Failed to send message.");
     } finally {
         setIsSendingMessage(false);
+    }
+  };
+  
+  const handleBillUser = async () => {
+    if (!window.confirm(`Are you sure you want to add a $2.00 bill to ${user.username}'s account? This can be used for testing or applying manual charges.`)) {
+        return;
+    }
+    setIsBilling(true);
+    try {
+        // FIX: Use v8 compat syntax for query, collection, and where.
+        const billsQuery = db.collection('bills').where('userId', '==', user.uid).where('status', '==', 'unpaid');
+        // FIX: Use v8 compat syntax for getDocs.
+        const billsSnapshot = await billsQuery.get();
+
+        if (!billsSnapshot.empty) {
+            const billDoc = billsSnapshot.docs[0];
+            const newAmount = billDoc.data().amount + 2;
+            // FIX: Use v8 compat syntax for updateDoc and doc.
+            await db.collection('bills').doc(billDoc.id).update({ amount: newAmount, updatedAt: firebase.firestore.Timestamp.now() });
+        } else {
+            // FIX: Use v8 compat syntax for addDoc and collection.
+            await db.collection('bills').add({
+                userId: user.uid,
+                amount: 2,
+                status: 'unpaid' as const,
+                createdAt: firebase.firestore.Timestamp.now(),
+                updatedAt: firebase.firestore.Timestamp.now(),
+            });
+        }
+        
+        // FIX: Use v8 compat syntax for addDoc and collection.
+        await db.collection('notifications').add({
+          userId: user.uid,
+          type: 'BILL_DUE',
+          message: 'An administrative charge of $2.00 has been added to your account.',
+          isRead: false,
+          timestamp: firebase.firestore.Timestamp.now(),
+          data: { billAmount: 2 },
+        });
+
+        alert('User billed successfully.');
+    } catch (error) {
+        console.error("Error billing user:", error);
+        alert("Failed to bill user.");
+    } finally {
+        setIsBilling(false);
     }
   };
 
@@ -176,7 +229,7 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
             <DetailRow icon={<WalletIcon className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />} label="Ecocash" name="ecocashNumber" value={formData.ecocashNumber} isEditing={isEditing} onChange={handleInputChange} />
           </div>
 
-          <div className="flex gap-4 mb-6">
+          <div className="flex gap-4 mb-2">
             {isEditing ? (
                 <>
                     <button onClick={() => setIsEditing(false)} disabled={isProcessing} className="flex-1 bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors">Cancel</button>
@@ -194,6 +247,12 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
             )}
           </div>
           
+          <div className="mb-6">
+             <button onClick={handleBillUser} disabled={isBilling} className="w-full bg-yellow-600/80 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex justify-center items-center">
+                {isBilling ? <SpinnerIcon className="w-5 h-5" /> : 'Bill User ($2.00)'}
+            </button>
+          </div>
+          
           {/* Send Message Section */}
           <div className="mb-6">
             {!isMessaging ? (
@@ -203,48 +262,45 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
             ) : (
                 <div className="bg-gray-100 dark:bg-slate-900/50 p-4 rounded-lg animate-fade-in-fast">
                     <h3 className="font-bold text-lg text-cyan-500 dark:text-cyan-400 mb-2">Compose Message</h3>
+                    {/* FIX: This file was truncated, causing a syntax error. The closing tags for the textarea and surrounding elements have been restored. */}
                     <textarea
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
                         placeholder={`Your message for ${user.username}...`}
                         className="w-full bg-gray-200 dark:bg-slate-800/60 text-gray-900 dark:text-white p-2 rounded-md border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         rows={3}
-                    />
-                    <div className="flex gap-2 justify-end mt-2">
-                        <button onClick={() => setIsMessaging(false)} className="bg-gray-300 dark:bg-slate-700 hover:bg-gray-400 dark:hover:bg-slate-600 font-semibold py-2 px-3 rounded-lg transition-colors text-sm">Cancel</button>
-                        <button onClick={handleSendMessage} disabled={isSendingMessage} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center min-w-[60px]">
-                            {isSendingMessage ? <SpinnerIcon className="w-4 h-4"/> : 'Send'}
+                    ></textarea>
+                     <div className="flex justify-end gap-2 mt-2">
+                        <button onClick={() => setIsMessaging(false)} disabled={isSendingMessage} className="text-sm bg-gray-200 dark:bg-slate-700 px-3 py-1 rounded-md">Cancel</button>
+                        <button onClick={handleSendMessage} disabled={isSendingMessage} className="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-md flex items-center justify-center min-w-[60px]">
+                            {isSendingMessage ? <SpinnerIcon className="w-4 h-4" /> : 'Send'}
                         </button>
                     </div>
                 </div>
             )}
           </div>
 
-          <h3 className="font-bold text-lg text-indigo-500 dark:text-indigo-400 mb-3">Reservation History ({reservations.length})</h3>
-          <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
+          <h3 className="font-bold text-lg text-center mb-4 text-indigo-500 dark:text-indigo-400">Reservation History</h3>
+          <div className="flex-grow overflow-y-auto pr-2 max-h-48">
             {isLoading ? (
-                <div className="flex justify-center py-8">
-                    <SpinnerIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
-                </div>
+              <div className="text-center py-10"><SpinnerIcon className="w-8 h-8 mx-auto text-indigo-500" /></div>
             ) : reservations.length > 0 ? (
-                reservations.map((res, index) => (
-                    <div key={res.id} className={`bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg ${index === 0 ? 'border-2 border-indigo-500' : ''}`}>
-                        {index === 0 && <p className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase mb-2">Last Parking Spot</p>}
-                        <div className="flex items-center gap-3 mb-1">
-                            <LocationIcon className="w-5 h-5 text-indigo-400 dark:text-indigo-300"/>
-                            <p className="font-semibold">{res.parkingLotName} - Slot {res.slotId.toUpperCase()}</p>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400">
-                           <p>{res.startTime.toDate().toLocaleString()}</p>
-                           <div className="flex items-center gap-4">
-                             <div className="flex items-center gap-1"><ClockIcon/>{res.durationHours}h</div>
-                             <div className="flex items-center gap-1"><WalletIcon/>${res.amountPaid.toFixed(2)}</div>
-                           </div>
-                        </div>
+              <div className="space-y-3">
+                {reservations.map(res => (
+                  <div key={res.id} className="bg-gray-100 dark:bg-slate-900/50 p-3 rounded-lg text-sm">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="font-semibold flex items-center gap-2"><LocationIcon /> {res.parkingLotName} - <span className="font-mono">{res.slotId.toUpperCase()}</span></p>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${res.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200' : res.status === 'active' ? 'bg-cyan-100 dark:bg-cyan-900 text-cyan-800 dark:text-cyan-200' : 'bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-slate-200'}`}>{res.status}</span>
                     </div>
-                ))
+                    <div className="flex justify-between text-gray-500 dark:text-slate-400">
+                      <span>{res.startTime.toDate().toLocaleString()}</span>
+                      <span className="font-semibold text-gray-700 dark:text-slate-300">${res.amountPaid.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
-                <p className="text-gray-500 dark:text-slate-400 text-center py-8">This user has no reservation history.</p>
+              <p className="text-center text-gray-400 dark:text-slate-500 py-10">No reservation history for this user.</p>
             )}
           </div>
         </div>

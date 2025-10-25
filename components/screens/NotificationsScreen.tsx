@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, runTransaction, Timestamp } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 import { db } from '../../services/firebase';
 import type { Notification, User, Reservation, ParkingLot } from '../../types';
 import { CheckmarkCircleIcon, TrashIcon, WalletIcon, CarIcon, ClockIcon, SpinnerIcon, ChatbubblesIcon } from '../Icons';
@@ -10,20 +11,30 @@ interface NotificationCardProps {
   onDelete: (id: string) => void;
   onMarkAsParked: (reservationId: string) => void;
   onLeftParking: (reservationId: string) => void;
+  onPayBill: () => void;
   className?: string;
 }
 
-const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reservation, onDelete, onMarkAsParked, onLeftParking, className = "" }) => {
+const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reservation, onDelete, onMarkAsParked, onLeftParking, onPayBill, className = "" }) => {
   const getIcon = () => {
     switch (notification.type) {
       case 'RESERVED': return <CheckmarkCircleIcon className="w-8 h-8 text-emerald-500 dark:text-emerald-400" />;
       case 'TIME_EXPIRED': return <ClockIcon className="w-8 h-8 text-yellow-500 dark:text-yellow-400" />;
       case 'REVIEW_REPLY': return <ChatbubblesIcon className="w-8 h-8 text-cyan-500 dark:text-cyan-400" />;
-      default: return <CheckmarkCircleIcon className="w-8 h-8 text-blue-500 dark:text-blue-400" />;
+      case 'BILL_DUE': return <WalletIcon className="w-8 h-8 text-red-500 dark:text-red-400" />;
+      default: return <CheckmarkCircleIcon className="w-8 h-8 text-blue-500 dark:blue-blue-400" />;
     }
   };
 
   const renderActionButton = () => {
+    if (notification.type === 'BILL_DUE') {
+      return (
+        <button onClick={onPayBill} className="mt-3 bg-red-600 hover:bg-red-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm w-full">
+          Pay Bill Now (${notification.data?.billAmount?.toFixed(2)})
+        </button>
+      );
+    }
+
     if (!reservation || notification.type !== 'RESERVED') {
       return null;
     }
@@ -76,10 +87,10 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reser
 interface NotificationsScreenProps {
   user: User | null;
   reservations: Reservation[];
-  onSessionComplete: () => void;
+  onOpenPayBillModal: () => void;
 }
 
-const NotificationsScreen = ({ user, reservations, onSessionComplete }: NotificationsScreenProps) => {
+const NotificationsScreen = ({ user, reservations, onOpenPayBillModal }: NotificationsScreenProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -93,12 +104,12 @@ const NotificationsScreen = ({ user, reservations, onSessionComplete }: Notifica
     };
     
     setIsLoading(true);
-    const q = query(
-        collection(db, 'notifications'), 
-        where('userId', '==', user.uid)
-    );
+    // FIX: Use v8 compat syntax for query and where.
+    const q = db.collection('notifications')
+        .where('userId', '==', user.uid);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    // FIX: Use v8 compat syntax for onSnapshot.
+    const unsubscribe = q.onSnapshot((querySnapshot) => {
         const notifs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
         // Sort client-side to avoid needing a composite index in Firestore
         notifs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
@@ -115,7 +126,8 @@ const NotificationsScreen = ({ user, reservations, onSessionComplete }: Notifica
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'notifications', id));
+      // FIX: Use v8 compat syntax for deleteDoc and doc.
+      await db.collection('notifications').doc(id).delete();
     } catch (error) {
       console.error("Error deleting notification: ", error);
     }
@@ -126,14 +138,16 @@ const NotificationsScreen = ({ user, reservations, onSessionComplete }: Notifica
     if (!reservation) return;
 
     try {
-      const resDocRef = doc(db, 'reservations', reservationId);
+      // FIX: Use v8 compat syntax for doc.
+      const resDocRef = db.collection('reservations').doc(reservationId);
       const now = new Date();
       const newEndTime = new Date(now.getTime() + reservation.durationHours * 60 * 60 * 1000);
       
-      await updateDoc(resDocRef, {
+      // FIX: Use v8 compat syntax for updateDoc and Timestamp.
+      await resDocRef.update({
         status: 'active',
-        startTime: Timestamp.fromDate(now),
-        endTime: Timestamp.fromDate(newEndTime)
+        startTime: firebase.firestore.Timestamp.fromDate(now),
+        endTime: firebase.firestore.Timestamp.fromDate(newEndTime)
       });
       // UI will update via the real-time listener in App.tsx
     } catch (error) {
@@ -147,12 +161,14 @@ const NotificationsScreen = ({ user, reservations, onSessionComplete }: Notifica
     if (!reservation) return;
 
     try {
-      const lotDocRef = doc(db, 'parkingLots', reservation.parkingLotId);
-      const resDocRef = doc(db, 'reservations', reservationId);
+      // FIX: Use v8 compat syntax for doc.
+      const lotDocRef = db.collection('parkingLots').doc(reservation.parkingLotId);
+      const resDocRef = db.collection('reservations').doc(reservationId);
 
-      await runTransaction(db, async (transaction) => {
+      // FIX: Use v8 compat syntax for runTransaction.
+      await db.runTransaction(async (transaction) => {
         const lotDoc = await transaction.get(lotDocRef);
-        if (!lotDoc.exists()) throw new Error("Parking lot not found!");
+        if (!lotDoc.exists) throw new Error("Parking lot not found!");
         
         const lotData = lotDoc.data() as ParkingLot;
         const slotIndex = lotData.slots.findIndex(s => s.id === reservation.slotId);
@@ -163,7 +179,6 @@ const NotificationsScreen = ({ user, reservations, onSessionComplete }: Notifica
         
         transaction.update(resDocRef, { status: 'completed' });
       });
-      onSessionComplete();
     } catch (error) {
       console.error("Error marking as left:", error);
       alert("Could not update parking status.");
@@ -188,6 +203,7 @@ const NotificationsScreen = ({ user, reservations, onSessionComplete }: Notifica
                 onDelete={handleDelete} 
                 onMarkAsParked={handleMarkAsParked}
                 onLeftParking={handleLeftParking}
+                onPayBill={onOpenPayBillModal}
                 className={`animate-slide-in-${index + 2}`} 
             />
           );

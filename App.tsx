@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, onSnapshot, collection, setDoc, runTransaction, query, where, orderBy, updateDoc, addDoc, Timestamp, getDocs, writeBatch } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports for auth methods to resolve type mismatch errors.
+import firebase from 'firebase/compat/app';
 import { auth, db } from './services/firebase';
 
-import type { ActiveTab, Theme, User, ParkingLot, Reservation, UserWithReservations, Notification, Notice } from './types';
+import type { ActiveTab, Theme, User, ParkingLot, Reservation, UserWithReservations, Notification, Notice, Bill } from './types';
 import Header from './components/Header';
 import Dock from './components/Dock';
 import HomeScreen from './components/screens/HomeScreen';
@@ -16,6 +17,7 @@ import AdminLoginModal from './components/admin/AdminLoginModal';
 import AdminDashboard from './components/admin/AdminDashboard';
 import UserDetailsModal from './components/UserDetailsModal';
 import LeaveReviewModal from './components/LeaveReviewModal';
+import PayBillModal from './components/PayBillModal';
 import { useGeolocation } from './hooks/useGeolocation';
 import { SpinnerIcon } from './components/Icons';
 import { createDefaultAdmin } from './services/setupAdmin';
@@ -33,18 +35,19 @@ const App = () => {
   const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
   const [isUserDetailsModalOpen, setIsUserDetailsModalOpen] = useState(false);
   const [isLeaveReviewModalOpen, setIsLeaveReviewModalOpen] = useState(false);
+  const [activeRoute, setActiveRoute] = useState<{ origin: { lat: number, lng: number }, destination: { lat: number, lng: number } } | null>(null);
   const [loginView, setLoginView] = useState<'user' | 'admin'>('user');
   const [hasUnreadNotices, setHasUnreadNotices] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const unreadNotifsListener = useRef<() => void | null>(null);
   const [showLoginLoader, setShowLoginLoader] = useState(false);
   const prevUser = useRef<User | null | 'loading'>(user);
-
+  const [unpaidBill, setUnpaidBill] = useState<Bill | null>(null);
+  const [isPayBillModalOpen, setIsPayBillModalOpen] = useState(false);
 
   const [selectedLotOnMap, setSelectedLotOnMap] = useState<string | null>(null);
   
   const geolocation = useGeolocation();
-  const [route, setRoute] = useState<{ from: [number, number], to: [number, number] } | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -74,7 +77,8 @@ const App = () => {
   
   // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+    // FIX: Use v8 compat syntax for onAuthStateChanged.
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: firebase.User | null) => {
       if (firebaseUser) {
         // Simplified admin check based on email instead of custom claims
         if (firebaseUser.email === 'admin@gmail.com') {
@@ -83,10 +87,11 @@ const App = () => {
           setIsAdmin(false);
         }
 
-        const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        // FIX: Use v8 compat syntax for doc and getDoc.
+        const userDocRef = db.collection('users').doc(firebaseUser.uid);
+        const userDocSnap = await userDocRef.get();
         
-        if (userDocSnap.exists()) {
+        if (userDocSnap.exists) {
           const userData = userDocSnap.data();
           const fetchedUser: User = {
             uid: firebaseUser.uid,
@@ -107,7 +112,8 @@ const App = () => {
             ecocashNumber: '',
             favoriteParkingLots: [],
           };
-          await setDoc(userDocRef, newUser);
+          // FIX: Use v8 compat syntax for setDoc.
+          await userDocRef.set(newUser);
           setUser(newUser);
         }
       } else {
@@ -121,8 +127,9 @@ const App = () => {
 
   // Listen for real-time parking lot updates
   useEffect(() => {
-    const q = collection(db, 'parkingLots');
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    // FIX: Use v8 compat syntax for collection and onSnapshot.
+    const q = db.collection('parkingLots');
+    const unsubscribe = q.onSnapshot((querySnapshot) => {
       const lots = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ParkingLot[];
       setParkingLots(lots);
     });
@@ -131,13 +138,14 @@ const App = () => {
 
   // New useEffect to listen for reservations for the current user
   useEffect(() => {
-    if (user && user !== 'loading') {
-        const q = query(
-            collection(db, 'reservations'),
-            where('userId', '==', user.uid)
-        );
+    // FIX: Use a type-safe check to ensure user is a User object, not the 'loading' string.
+    if (user && typeof user === 'object') {
+        // FIX: Use v8 compat syntax for query, collection, and where.
+        const q = db.collection('reservations')
+            .where('userId', '==', user.uid);
 
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        // FIX: Use v8 compat syntax for onSnapshot.
+        const unsubscribe = q.onSnapshot((querySnapshot) => {
             const res = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[];
             // Sort client-side to avoid needing a composite index in Firestore
             res.sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
@@ -152,8 +160,10 @@ const App = () => {
 
   // Listen for notices
   useEffect(() => {
-    const q = query(collection(db, 'notices'), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    // FIX: Use v8 compat syntax for query, collection, and orderBy.
+    const q = db.collection('notices').orderBy('timestamp', 'desc');
+    // FIX: Use v8 compat syntax for onSnapshot.
+    const unsubscribe = q.onSnapshot((querySnapshot) => {
         const fetchedNotices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notice[];
         setNotices(fetchedNotices);
         setIsLoadingNotices(false);
@@ -166,7 +176,8 @@ const App = () => {
 
   // Check for unread notices
   useEffect(() => {
-    if (user && user !== 'loading' && notices.length > 0) {
+    // FIX: Use a type-safe check to ensure user is a User object.
+    if (user && typeof user === 'object' && notices.length > 0) {
       const newestNoticeTimestamp = notices[0].timestamp;
       const lastViewedTimestamp = user.lastViewedNotices;
 
@@ -182,19 +193,20 @@ const App = () => {
   
   // Listen for unread notifications (for the badge)
   useEffect(() => {
-    if (user && user !== 'loading') {
-        const q = query(
-            collection(db, 'notifications'),
-            where('userId', '==', user.uid),
-            where('isRead', '==', false)
-        );
+    // FIX: Use a type-safe check to ensure user is a User object.
+    if (user && typeof user === 'object') {
+        // FIX: Use v8 compat syntax for query, collection, and where.
+        const q = db.collection('notifications')
+            .where('userId', '==', user.uid)
+            .where('isRead', '==', false);
         
         // Unsubscribe from previous listener if it exists
         if (unreadNotifsListener.current) {
             unreadNotifsListener.current();
         }
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        // FIX: Use v8 compat syntax for onSnapshot.
+        const unsubscribe = q.onSnapshot((snapshot) => {
             setHasUnreadNotifications(!snapshot.empty);
         });
         
@@ -216,14 +228,41 @@ const App = () => {
     }
   }, [user]);
 
+  // Listen for unpaid bills
+  useEffect(() => {
+    // FIX: Use a type-safe check to ensure user is a User object.
+    if (user && typeof user === 'object') {
+        // FIX: Use v8 compat syntax for query, collection, and where.
+        const q = db.collection('bills')
+            .where('userId', '==', user.uid)
+            .where('status', '==', 'unpaid');
+        // FIX: Use v8 compat syntax for onSnapshot.
+        const unsubscribe = q.onSnapshot((snapshot) => {
+            if (!snapshot.empty) {
+                const billDoc = snapshot.docs[0];
+                setUnpaidBill({ id: billDoc.id, ...billDoc.data() } as Bill);
+            } else {
+                setUnpaidBill(null);
+            }
+        });
+        return () => unsubscribe();
+    } else {
+        setUnpaidBill(null);
+    }
+  }, [user]);
+
   // Mark notices as read when user visits the notice board
   useEffect(() => {
     const markNoticesAsRead = async () => {
-      if (activeTab === 'notices' && user && user !== 'loading' && hasUnreadNotices) {
-        const userDocRef = doc(db, 'users', user.uid);
+      // FIX: Use a type-safe check to ensure user is a User object.
+      if (activeTab === 'notices' && user && typeof user === 'object' && hasUnreadNotices) {
+        // FIX: Use v8 compat syntax for doc.
+        const userDocRef = db.collection('users').doc(user.uid);
         try {
-          const now = Timestamp.now();
-          await updateDoc(userDocRef, {
+          // FIX: Use v8 compat syntax for Timestamp.
+          const now = firebase.firestore.Timestamp.now();
+          // FIX: Use v8 compat syntax for updateDoc.
+          await userDocRef.update({
             lastViewedNotices: now
           });
           // Update user state locally to reflect the change immediately and remove badge
@@ -242,17 +281,19 @@ const App = () => {
   // Mark notifications as read when user visits the notifications screen
   useEffect(() => {
     const markNotificationsAsRead = async () => {
-        if (activeTab === 'notifications' && user && user !== 'loading' && hasUnreadNotifications) {
-            const q = query(
-                collection(db, 'notifications'),
-                where('userId', '==', user.uid),
-                where('isRead', '==', false)
-            );
+        // FIX: Use a type-safe check to ensure user is a User object.
+        if (activeTab === 'notifications' && user && typeof user === 'object' && hasUnreadNotifications) {
+            // FIX: Use v8 compat syntax for query, collection, and where.
+            const q = db.collection('notifications')
+                .where('userId', '==', user.uid)
+                .where('isRead', '==', false);
             try {
-                const querySnapshot = await getDocs(q);
+                // FIX: Use v8 compat syntax for getDocs.
+                const querySnapshot = await q.get();
                 if (querySnapshot.empty) return;
                 
-                const batch = writeBatch(db);
+                // FIX: Use v8 compat syntax for writeBatch.
+                const batch = db.batch();
                 querySnapshot.docs.forEach(doc => {
                     batch.update(doc.ref, { isRead: true });
                 });
@@ -267,73 +308,87 @@ const App = () => {
   }, [activeTab, user, hasUnreadNotifications]);
 
 
-  // Auto-expire reservations logic
+  // Billing and overstay logic
   useEffect(() => {
-    const checkExpiredReservations = async () => {
-      const now = Timestamp.now();
-      // FIX: Query only by status to avoid needing a composite index.
-      const q = query(
-        collection(db, 'reservations'),
-        where('status', '==', 'active')
-      );
+    const checkOverstayAndBill = async () => {
+      // FIX: Use v8 compat syntax for Timestamp.
+      const nowTimestamp = firebase.firestore.Timestamp.now();
+      // Query only for active reservations to avoid needing a composite index.
+      // FIX: Use v8 compat syntax for query, collection, and where.
+      const q = db.collection('reservations').where('status', '==', 'active');
 
       try {
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
-          return; // No active reservations
-        }
-        
-        // FIX: Filter for expired reservations on the client-side.
-        const expiredDocs = querySnapshot.docs.filter(doc => doc.data().endTime.toMillis() < now.toMillis());
+        // FIX: Use v8 compat syntax for getDocs.
+        const querySnapshot = await q.get();
+        if (querySnapshot.empty) return;
 
-        if (expiredDocs.length === 0) {
-            return; // No expired reservations found
-        }
+        // Filter for expired reservations on the client side.
+        const overstayedReservations = querySnapshot.docs.filter(doc => {
+          const reservation = doc.data() as Reservation;
+          return reservation.endTime.toMillis() < nowTimestamp.toMillis();
+        });
 
-        for (const resDoc of expiredDocs) {
+        if (overstayedReservations.length === 0) return;
+
+        for (const resDoc of overstayedReservations) {
           const reservation = { id: resDoc.id, ...resDoc.data() } as Reservation;
-          
-          const lotDocRef = doc(db, 'parkingLots', reservation.parkingLotId);
-          const resDocRef = doc(db, 'reservations', reservation.id);
+          const endTime = reservation.endTime.toMillis();
+          const hoursOver = Math.ceil((nowTimestamp.toMillis() - endTime) / (1000 * 60 * 60));
+          const billAmount = hoursOver * 2; // $2 per hour
 
-          await runTransaction(db, async (transaction) => {
-            const lotDoc = await transaction.get(lotDocRef);
-            if (!lotDoc.exists()) {
-              console.error(`Lot ${reservation.parkingLotId} not found for expired reservation.`);
-              return; // Skip this one
+          // FIX: Use v8 compat syntax for query, collection, and where.
+          const billsQuery = db.collection('bills').where('reservationId', '==', reservation.id);
+          // FIX: Use v8 compat syntax for getDocs.
+          const billsSnapshot = await billsQuery.get();
+
+          if (billsSnapshot.empty) {
+            // Create new bill
+            // FIX: Use v8 compat syntax for doc and collection.
+            const newBillRef = db.collection('bills').doc();
+            const newBill: Omit<Bill, 'id'> = {
+              userId: reservation.userId,
+              reservationId: reservation.id,
+              amount: billAmount,
+              status: 'unpaid',
+              // FIX: Use v8 compat syntax for Timestamp.
+              createdAt: firebase.firestore.Timestamp.now(),
+              updatedAt: firebase.firestore.Timestamp.now(),
+            };
+            // FIX: Use v8 compat syntax for setDoc.
+            await newBillRef.set(newBill);
+            // Send notification
+            // FIX: Use v8 compat syntax for addDoc and collection.
+            await db.collection('notifications').add({
+              userId: reservation.userId,
+              type: 'BILL_DUE',
+              message: `Your time at ${reservation.parkingLotName} has expired. An overstay bill has been generated.`,
+              isRead: false,
+              // FIX: Use v8 compat syntax for Timestamp.
+              timestamp: firebase.firestore.Timestamp.now(),
+              data: { billId: newBillRef.id, billAmount: billAmount },
+            });
+          } else {
+            // Update existing bill
+            const billDoc = billsSnapshot.docs[0];
+            const existingBill = billDoc.data() as Bill;
+            if (billAmount > existingBill.amount) {
+              // FIX: Use v8 compat syntax for updateDoc.
+              await billDoc.ref.update({ amount: billAmount, updatedAt: firebase.firestore.Timestamp.now() });
             }
-            
-            const lotData = lotDoc.data() as ParkingLot;
-            const slotIndex = lotData.slots.findIndex(s => s.id === reservation.slotId);
-
-            if (slotIndex > -1 && lotData.slots[slotIndex].isOccupied) {
-              lotData.slots[slotIndex].isOccupied = false;
-              transaction.update(lotDocRef, { slots: lotData.slots });
-            }
-            
-            transaction.update(resDocRef, { status: 'expired' });
-          });
-
-          // Send notification AFTER successful transaction
-          await addDoc(collection(db, 'notifications'), {
-            userId: reservation.userId,
-            type: 'TIME_EXPIRED',
-            message: `Your parking time at ${reservation.parkingLotName} for slot ${reservation.slotId.toUpperCase()} has expired.`,
-            isRead: false,
-            timestamp: Timestamp.now()
-          });
+          }
         }
       } catch (error) {
-        console.error("Error processing expired reservations:", error);
+        console.error("Error processing overstay bills:", error);
       }
     };
 
-    const intervalId = setInterval(checkExpiredReservations, 60000); // Check every minute
+    const intervalId = setInterval(checkOverstayAndBill, 5 * 60 * 1000); // Check every 5 minutes
     return () => clearInterval(intervalId);
-  }, []); // Run only once when the app loads
+  }, []);
 
   const handleLogout = () => {
-    signOut(auth);
+    // FIX: Use v8 compat syntax for signOut.
+    auth.signOut();
     setIsAdmin(false);
     setActiveTab('home');
   };
@@ -344,9 +399,11 @@ const App = () => {
   };
   
   const handleSaveUserDetails = async (details: { carPlate: string; ecocashNumber: string }) => {
-    if (user && user !== 'loading') {
-      const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, { ...details });
+    // FIX: Use a type-safe check to ensure user is a User object.
+    if (user && typeof user === 'object') {
+      // FIX: Use v8 compat syntax for doc and updateDoc.
+      const userDocRef = db.collection('users').doc(user.uid);
+      await userDocRef.update({ ...details });
       setUser(prevUser => {
         if (!prevUser || prevUser === 'loading') return null;
         return { ...prevUser, ...details };
@@ -356,20 +413,28 @@ const App = () => {
   };
 
   const handleConfirmReservation = async (lotId: string, slotId: string, hours: number) => {
-    if (!user || user === 'loading') {
+    // FIX: Use a type-safe check to ensure user is a User object.
+    if (!user || typeof user !== 'object') {
       alert("You must be logged in to make a reservation.");
       return;
     }
+    
+    if (unpaidBill) {
+        setIsPayBillModalOpen(true);
+        return;
+    }
 
-    const lotDocRef = doc(db, 'parkingLots', lotId);
-    const newReservationRef = doc(collection(db, 'reservations')); // Generate ref beforehand
+    // FIX: Use v8 compat syntax for doc and collection.
+    const lotDocRef = db.collection('parkingLots').doc(lotId);
+    const newReservationRef = db.collection('reservations').doc(); // Generate ref beforehand
 
     try {
       let newReservationData: Omit<Reservation, 'id'> | null = null;
       
-      await runTransaction(db, async (transaction) => {
+      // FIX: Use v8 compat syntax for runTransaction.
+      await db.runTransaction(async (transaction) => {
         const lotDoc = await transaction.get(lotDocRef);
-        if (!lotDoc.exists()) {
+        if (!lotDoc.exists) {
           throw new Error("Parking lot does not exist!");
         }
 
@@ -397,8 +462,9 @@ const App = () => {
           parkingLotId: lotId,
           parkingLotName: lotData.name,
           slotId: slotId,
-          startTime: Timestamp.fromDate(startTime),
-          endTime: Timestamp.fromDate(endTime),
+          // FIX: Use v8 compat syntax for Timestamp.
+          startTime: firebase.firestore.Timestamp.fromDate(startTime),
+          endTime: firebase.firestore.Timestamp.fromDate(endTime),
           durationHours: hours,
           amountPaid: hours * lotData.hourlyRate,
           status: 'confirmed' as const,
@@ -415,7 +481,8 @@ const App = () => {
             type: 'RESERVED',
             message: `You have successfully reserved spot ${slotId.toUpperCase()} at ${newReservationData.parkingLotName}. Please mark when you have parked.`,
             isRead: false,
-            timestamp: Timestamp.now(),
+            // FIX: Use v8 compat syntax for Timestamp.
+            timestamp: firebase.firestore.Timestamp.now(),
             data: {
                 reservationId: newReservationRef.id,
                 carPlate: user.carPlate,
@@ -423,16 +490,17 @@ const App = () => {
                 hoursLeft: newReservationData.durationHours,
             }
         };
-        await addDoc(collection(db, 'notifications'), newNotification);
+        // FIX: Use v8 compat syntax for addDoc and collection.
+        await db.collection('notifications').add(newNotification);
       }
 
       const userLocation = geolocation.data?.coords;
       const destinationLot = parkingLots.find(l => l.id === lotId);
 
       if (userLocation && destinationLot) {
-        setRoute({
-          from: [userLocation.latitude, userLocation.longitude],
-          to: [destinationLot.location.latitude, destinationLot.location.longitude]
+        setActiveRoute({
+            origin: { lat: userLocation.latitude, lng: userLocation.longitude },
+            destination: { lat: destinationLot.location.latitude, lng: destinationLot.location.longitude }
         });
         setActiveTab('map');
       }
@@ -443,25 +511,19 @@ const App = () => {
     }
   };
   
-  const handleArrived = () => {
-    setRoute(null);
-  };
-  
-  const handleSessionComplete = () => {
-    setRoute(null);
-  };
-
   const handleToggleFavorite = async (parkingLotId: string) => {
-    if (!user || user === 'loading') return;
+    // FIX: Use a type-safe check to ensure user is a User object.
+    if (!user || typeof user !== 'object') return;
 
     const currentFavorites = user.favoriteParkingLots || [];
     const newFavorites = currentFavorites.includes(parkingLotId)
       ? currentFavorites.filter(id => id !== parkingLotId)
       : [...currentFavorites, parkingLotId];
 
-    const userDocRef = doc(db, 'users', user.uid);
+    // FIX: Use v8 compat syntax for doc and updateDoc.
+    const userDocRef = db.collection('users').doc(user.uid);
     try {
-      await updateDoc(userDocRef, { favoriteParkingLots: newFavorites });
+      await userDocRef.update({ favoriteParkingLots: newFavorites });
       setUser(prev => {
         if (!prev || prev === 'loading') return prev;
         return { ...prev, favoriteParkingLots: newFavorites };
@@ -485,7 +547,7 @@ const App = () => {
     );
   }
 
-  const fullUserWithReservations: UserWithReservations | null = (user && user !== 'loading') 
+  const fullUserWithReservations: UserWithReservations | null = (user && typeof user === 'object') 
     ? { ...user, reservations: userReservations } 
     : null;
 
@@ -506,20 +568,25 @@ const App = () => {
                   parkingLots={parkingLots} 
                   onConfirmReservation={handleConfirmReservation}
                   userLocation={geolocation.data}
-                  route={route}
-                  onArrived={handleArrived}
                   isLoggedIn={!!user}
                   onLoginSuccess={() => { /* onAuthStateChanged handles this */ }}
-                  user={user && user !== 'loading' ? user : null}
+                  // FIX: Use a type-safe check to ensure user is a User object before passing.
+                  user={user && typeof user === 'object' ? user : null}
                   onToggleFavorite={handleToggleFavorite}
                   selectedLotId={selectedLotOnMap}
                   onClearSelectedLot={() => setSelectedLotOnMap(null)}
+                  activeRoute={activeRoute}
+                  onClearActiveRoute={() => setActiveRoute(null)}
+                  unpaidBill={unpaidBill}
+                  onOpenPayBillModal={() => setIsPayBillModalOpen(true)}
+                  // FIX: Pass the required onOpenUserDetailsModal prop.
+                  onOpenUserDetailsModal={() => setIsUserDetailsModalOpen(true)}
                 />;
       case 'notifications':
         return <NotificationsScreen 
                   user={user} 
                   reservations={userReservations} 
-                  onSessionComplete={handleSessionComplete}
+                  onOpenPayBillModal={() => setIsPayBillModalOpen(true)}
                 />;
       case 'notices':
         return <NoticeBoardScreen notices={notices} isLoading={isLoadingNotices} />;
@@ -566,14 +633,15 @@ const App = () => {
         onSuccess={handleAdminLoginSuccess}
       />
 
-      {user && user !== 'loading' && <UserDetailsModal
+      {/* FIX: Use a type-safe check to ensure user is a User object before rendering modals. */}
+      {user && typeof user === 'object' && <UserDetailsModal
         isOpen={isUserDetailsModalOpen}
         onClose={() => setIsUserDetailsModalOpen(false)}
         onSave={handleSaveUserDetails}
         user={user}
       />}
 
-      {user && user !== 'loading' && <LeaveReviewModal
+      {user && typeof user === 'object' && <LeaveReviewModal
         isOpen={isLeaveReviewModalOpen}
         onClose={() => setIsLeaveReviewModalOpen(false)}
         user={user}
@@ -581,6 +649,17 @@ const App = () => {
         onSuccess={() => {
             alert('Thank you for your feedback!');
             setIsLeaveReviewModalOpen(false);
+        }}
+       />}
+      
+      {user && typeof user === 'object' && unpaidBill && <PayBillModal
+        isOpen={isPayBillModalOpen}
+        onClose={() => setIsPayBillModalOpen(false)}
+        bill={unpaidBill}
+        user={user}
+        onSuccess={() => {
+            alert("Bill paid successfully!");
+            setIsPayBillModalOpen(false);
         }}
        />}
 

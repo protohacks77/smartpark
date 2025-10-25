@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Reservation, User } from '../types';
 import { SpinnerIcon } from './Icons';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
+import firebase from 'firebase/compat/app';
 import { db } from '../services/firebase';
 
 interface LeaveReviewModalProps {
@@ -83,14 +84,15 @@ const LeaveReviewModal = ({ isOpen, onClose, reservations, user, onSuccess }: Le
     if (!lot) return;
 
     try {
-        await addDoc(collection(db, 'reviews'), {
+        // FIX: Use v8 compat syntax for addDoc, collection, and Timestamp.
+        await db.collection('reviews').add({
             userId: user.uid,
             username: user.username,
             parkingLotId: selectedLotId,
             parkingLotName: lot.name,
             rating: rating,
             comment: comment.trim(),
-            timestamp: Timestamp.now(),
+            timestamp: firebase.firestore.Timestamp.now(),
         });
         onSuccess();
     } catch (e) {
