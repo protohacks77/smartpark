@@ -1,3 +1,14 @@
+<<<<<<< HEAD
+=======
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { httpsCallable } from 'firebase/functions';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { functions, db } from '../services/firebase';
+import type { ParkingLot, User, PaymentIntent } from '../types';
+import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon, WalletIcon, CheckmarkCircleIcon, CloseCircleIcon } from './Icons';
+
+>>>>>>> 82d4227b06ce9ddfec6ed10598955f299d3a3458
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ParkingLot } from '../types';
