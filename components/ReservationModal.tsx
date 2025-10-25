@@ -1,7 +1,7 @@
-<<<<<<< HEAD
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ParkingLot, User } from '../types';
-=======
+
 
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -15,7 +15,7 @@ import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon, WalletIcon, CheckmarkCir
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ParkingLot } from '../types';
->>>>>>> 82d52050ab08fdb6dee5f9414e262605c8fb087f
+
 import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon } from './Icons';
 
 interface ReservationModalProps {
