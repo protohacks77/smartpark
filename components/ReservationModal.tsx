@@ -1,5 +1,26 @@
+<<<<<<< HEAD
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ParkingLot, User } from '../types';
+=======
+
+import React, { useState, useMemo, useEffect } from 'react';
+import type { ParkingLot, User } from '../types';
+
+
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { httpsCallable } from 'firebase/functions';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { functions, db } from '../services/firebase';
+import type { ParkingLot, User, PaymentIntent } from '../types';
+import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon, WalletIcon, CheckmarkCircleIcon, CloseCircleIcon } from './Icons';
+
+
+
+import React, { useState, useMemo, useEffect } from 'react';
+import type { ParkingLot } from '../types';
+
+>>>>>>> 5d80246355b645f880d8d19e520f596d32e8b6bb
 import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon } from './Icons';
 
 interface ReservationModalProps {

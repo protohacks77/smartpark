@@ -1,0 +1,28 @@
+# Netlify configuration file for the SmartPark application
+
+# 1. Build settings
+# This tells Netlify how to build your site for production.
+[build]
+  # The command to run to build your site.
+  # This usually runs a script in your package.json.
+  command = "npm run build"
+  
+  # The directory that contains the built static files (like index.html).
+  # This is typically "dist" for Vite or "build" for Create React App.
+  publish = "dist"
+  
+  # The directory where your serverless functions are located.
+  functions = "netlify/functions"
+
+# It's good practice to specify the Node.js version.
+[build.environment]
+  NODE_VERSION = "18"
+
+# 2. Redirect rule for Single Page Applications (SPAs)
+# This rule is essential for React applications that use client-side routing.
+# It ensures that any direct navigation to a path like "/map" or "/settings"
+# is correctly handled by your app's index.html file.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
