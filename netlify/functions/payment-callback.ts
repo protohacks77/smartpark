@@ -44,7 +44,7 @@ export const paymentCallback = functions.https.onRequest(async (req, res) => {
         // --- IMPORTANT: Hash Verification ---
         // This is a crucial security step to ensure the request is from Paynow.
         const isUsd = intentData.currency === 'USD';
-        const integrationKey = isUsd ? process.env.ECOCASH_USD_INTEGRATION_KEY : process.env.ECOCASH_ZWL_INTEGRATION_KEY;
+        const integrationKey = isUsd ? process.env.PAYNOW_KEY_USD : process.env.PAYNOW_KEY_ZWL;
         if (!integrationKey) {
             console.error('Integration key not found for hash verification.');
             res.status(500).send('Internal Server Error');
