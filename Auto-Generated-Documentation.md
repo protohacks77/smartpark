@@ -1,119 +1,89 @@
 # SmartPark Application Documentation
 
-## Project Overview
+## 1. Project Overview
 
-SmartPark is a web application designed to help users find and reserve parking spots. It provides a user-friendly interface for viewing parking lots, reserving spots, and processing payments. The application also includes an admin dashboard for managing parking lots and viewing system activity.
+SmartPark is a comprehensive web application designed to streamline the process of finding, reserving, and paying for parking spots. It features a real-time map-based interface for users to view parking lot availability, and a complete backend system for handling reservations and payments. The application also includes an administrative dashboard for managing the parking infrastructure.
 
-## Technologies Used
+## 2. Core Technologies
 
 ### Frontend
 
-*   **React:** A JavaScript library for building user interfaces.
-*   **Vite:** A fast build tool and development server for modern web projects.
-*   **TypeScript:** A typed superset of JavaScript that compiles to plain JavaScript.
-*   **Firebase (Client SDK):** Used for authentication and real-time database interactions from the client-side.
-*   **Recharts:** A composable charting library built on React components.
-*   **Tailwind CSS (via PostCSS):** A utility-first CSS framework for rapid UI development.
+*   **React & TypeScript:** For building a type-safe, component-based user interface.
+*   **Vite:** As the build tool and development server for a fast and modern workflow.
+*   **Firebase Client SDK:** For handling user authentication and receiving real-time database updates from Firestore.
+*   **Leaflet.js:** An open-source library for interactive maps, used to display parking lots and user locations.
 
 ### Backend
 
-*   **Netlify Functions:** Serverless functions for backend logic.
-*   **Firebase Admin SDK:** Used for privileged backend operations like creating custom tokens and interacting with Firestore.
-*   **Paynow:** A payment gateway for processing mobile payments.
+*   **Netlify Functions:** Serverless functions that provide the backend logic for payment processing and other server-side tasks.
+*   **Firebase Admin SDK:** Used within the Netlify Functions for privileged operations such as creating database records and managing user data.
+*   **Paynow:** The payment gateway integrated for processing mobile payments.
 
 ### Database
 
-*   **Firestore:** A flexible, scalable NoSQL cloud database to store and sync data for client- and server-side development.
+*   **Firestore:** A NoSQL cloud database used to store all application data, including user profiles, parking lot information, reservations, and payment records.
 
-## Project Structure
+## 3. Detailed Application Workflow
 
-The project is organized into the following main directories:
+This section breaks down the primary user and system workflows, explaining how different parts of the application interact.
 
-*   `src/`: Contains the source code for the React frontend application.
-    *   `components/`: Reusable React components.
-    *   `hooks/`: Custom React hooks.
-    *   `services/`: Modules for interacting with external services like Firebase.
-*   `netlify/`: Contains the serverless functions for the backend.
-    *   `functions/`: The individual serverless function files.
-*   `public/`: Static assets that are publicly accessible.
+### 3.1. User Authentication
 
-## Frontend
+1.  **Login/Sign-up:** Users can create an account or log in using email/password or Google authentication. This process is managed by the `LoginModal.tsx` component, which uses Firebase Authentication.
+2.  **Session Management:** Upon successful login, Firebase creates a user session. The main `App.tsx` component listens for authentication state changes and fetches the user's profile from the `users` collection in Firestore.
+3.  **User Data:** The user's profile, including their car plate number and EcoCash number, is stored in Firestore and can be managed from the `SettingsScreen.tsx`.
 
-The frontend is a single-page application (SPA) built with React and Vite.
+### 3.2. Finding and Reserving a Parking Spot
 
-### Key Components
+1.  **Viewing Parking Lots:** The `MapScreen.tsx` is the primary interface for finding parking. It displays all parking lots from the `parkingLots` collection in Firestore as markers on a Leaflet map. The markers are color-coded to indicate availability.
+2.  **Selecting a Lot:** When a user clicks on a parking lot marker, the map zooms in to show individual parking slots, which are also color-coded. This detailed view is managed by the "spiderfy" logic in `MapScreen.tsx`.
+3.  **Initiating a Reservation:** The user can then click the "Reserve a Spot" button, which opens the `ReservationModal.tsx`.
+4.  **Reservation Details:** Inside the modal, the user selects an available slot and the desired reservation duration. The total price is calculated based on the lot's hourly rate.
+5.  **Confirmation and Payment:** Clicking "Confirm & Pay" triggers the `onInitiatePayment` function, which passes the reservation details to the payment workflow.
 
-*   `App.tsx`: The main component that manages the application's state and routing.
-*   `Header.tsx`: The main navigation bar.
-*   `Dock.tsx`: The bottom navigation for mobile view.
-*   `screens/`: Components that represent the different screens of the application (Home, Map, Notifications, etc.).
-*   `admin/`: Components for the admin dashboard.
+### 3.3. Payment Process
 
-### State Management
+1.  **Backend Request:** The frontend calls the `initiate-payment` Netlify function, sending the reservation details.
+2.  **Payment Intent:** The function first creates a `paymentIntent` document in Firestore to track the payment's status.
+3.  **Paynow Integration:** It then communicates with the Paynow API, sending the payment amount and user's EcoCash number.
+4.  **User Confirmation:** The user receives a push notification on their mobile device to approve the payment.
+5.  **Payment Callback:** Once the payment is approved, Paynow sends a confirmation to the `payment-callback` Netlify function (webhook).
+6.  **Hash Verification:** For security, this function verifies a cryptographic hash in the request to ensure it genuinely came from Paynow.
+7.  **Database Updates:** Upon successful verification, the function performs several critical database operations within a Firestore transaction to ensure data integrity:
+    *   The `paymentIntent` is marked as "successful."
+    *   A new `reservation` document is created with the start and end times.
+    *   The corresponding slot in the `parkingLots` collection is marked as occupied.
+8.  **User Notification:** Finally, a notification is created in the `notifications` collection, informing the user of their successful reservation. The frontend, listening for real-time updates, displays this notification on the `NotificationsScreen.tsx`.
 
-The application's state is primarily managed within the `App.tsx` component using React's `useState` and `useEffect` hooks. Real-time data synchronization with Firestore is achieved using the Firebase client SDK's `onSnapshot` listeners.
+### 3.4. Active Parking and Overstay Management
 
-### Routing
+1.  **Marking as Parked:** In the `NotificationsScreen.tsx`, the user has a "Mark as Parked" button for their active reservation. Clicking this updates the reservation's `startTime` to the current time and recalculates the `endTime`.
+2.  **Overstay Check:** A recurring background process in the `App.tsx` component's `useEffect` hook periodically checks for active reservations where the `endTime` has passed.
+3.  **Billing:** If an overstay is detected, the system calculates the overstay duration and creates a `bill` document in Firestore with the amount due.
+4.  **Bill Notification:** The user receives a notification about the outstanding bill and is prompted to pay it via the `PayBillModal.tsx`. Users with outstanding bills are prevented from making new reservations.
 
-The application uses a simple state-based routing system within the `App.tsx` component to switch between different screens. The `activeTab` state variable controls which screen is currently displayed.
-
-## Backend
-
-The backend is built using Netlify Functions, which are serverless functions that run on AWS Lambda.
-
-### Key Functions
-
-*   `initiate-payment.ts`: This function is called by the frontend to start a new payment process. It communicates with the Paynow API to create a payment and returns the necessary information to the client.
-*   -`payment-callback.ts`: This function serves as the webhook endpoint for Paynow to send payment status updates. It verifies the authenticity of the request and updates the corresponding payment intent and reservation in Firestore.
-
-## Firebase Integration
-
-Firebase is used for several key features in the application:
-
-*   **Authentication:** Firebase Authentication is used to manage user sign-up, login, and session management.
-*   **Firestore:** Firestore is the primary database for storing application data, including:
-    *   `users`: User profiles and information.
-    *   `parkingLots`: Details about each parking lot, including its slots and pricing.
-    *   `reservations`: Records of user reservations.
-    *   `paymentIntents`: Temporary records created during the payment process.
-    *   `notifications`: User-specific notifications.
-    *   `notices`: System-wide announcements.
-    *   `bills`: Records of unpaid bills for overstayed reservations.
-
-## Payment Flow
-
-1.  **Initiation:** The user selects a parking spot and initiates a payment from the frontend.
-2.  **Serverless Function Call:** The frontend calls the `initiate-payment` Netlify function with the payment details.
-3.  **Paynow API:** The `initiate-payment` function communicates with the Paynow API to create a new mobile payment.
-4.  **User Confirmation:** The user receives a prompt on their mobile device to confirm the payment.
-5.  **Paynow Callback:** Once the user confirms the payment, Paynow sends a POST request to the `payment-callback` webhook URL.
-6.  **Webhook Processing:** The `payment-callback` function verifies the request, updates the payment intent in Firestore, creates a new reservation, and updates the availability of the parking slot.
-7.  **Real-time Update:** The frontend, which is listening for real-time updates to the reservations collection, is automatically updated with the new reservation information.
-
-## Getting Started
+## 4. Setting Up the Project
 
 ### Prerequisites
 
-*   Node.js (version 18 or higher)
-*   npm
+*   Node.js (v18 or higher)
+*   npm (or a compatible package manager)
+*   Netlify CLI (for local testing of serverless functions)
 
-### Installation
+### Installation Steps
 
-1.  Clone the repository:
-
+1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/your-username/smartpark.git
+    git clone <repository-url>
     cd smartpark
     ```
 
-2.  Install the frontend dependencies:
-
+2.  **Install Frontend Dependencies:**
     ```bash
     npm install
     ```
 
-3.  Install the backend dependencies:
-
+3.  **Install Backend Dependencies:**
     ```bash
     cd netlify
     npm install
@@ -122,29 +92,24 @@ Firebase is used for several key features in the application:
 
 ### Running the Application
 
-1.  **Development Server:**
-
+1.  **For Frontend Development:**
     ```bash
     npm run dev
     ```
+    This starts the Vite development server, accessible at `http://localhost:3000`.
 
-    This will start the Vite development server, and you can access the application at `http://localhost:3000`.
-
-2.  **Netlify Dev (for local testing of serverless functions):**
-
+2.  **For Full-Stack Local Development (including serverless functions):**
     ```bash
-    npm install -g netlify-cli
     netlify dev
     ```
-
-    This will start a local development server that emulates the Netlify environment, allowing you to test the serverless functions locally.
+    This command starts a local environment that mimics the Netlify production environment, allowing you to test the entire application, including the backend functions.
 
 ### Building for Production
 
-To create a production build of the application, run the following command:
+To create an optimized production build of the frontend, run:
 
 ```bash
 npm run build
 ```
 
-This will generate a `dist` directory with the optimized and minified production assets.
+This command bundles the application into a `dist` directory, which can then be deployed to a static hosting service like Netlify.
