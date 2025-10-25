@@ -21,6 +21,24 @@ import { useGeolocation } from './hooks/useGeolocation';
 import { SpinnerIcon } from './components/Icons';
 import { createDefaultAdmin } from './services/setupAdmin';
 import LoadingModal from './components/LoadingModal';
+import PaymentScreen from './components/screens/PaymentScreen';
+
+// --- Type Definitions for View State ---
+interface ReservationDetails {
+    lotId: string;
+    slotId: string;
+    hours: number;
+    amount: number;
+    userId: string;
+    email: string;
+    lotName: string;
+    destinationLat: number;
+    destinationLng: number;
+}
+type ViewState = 
+    | { name: 'main' } 
+    | { name: 'payment', details: ReservationDetails };
+
 
 const App = () => {
   const [user, setUser] = useState<User | null | 'loading'>('loading');
@@ -43,6 +61,7 @@ const App = () => {
   const prevUser = useRef<User | null | 'loading'>(user);
   const [unpaidBill, setUnpaidBill] = useState<Bill | null>(null);
   const [isPayBillModalOpen, setIsPayBillModalOpen] = useState(false);
+  const [viewState, setViewState] = useState<ViewState>({ name: 'main' });
 
   const [selectedLotOnMap, setSelectedLotOnMap] = useState<string | null>(null);
   
@@ -73,31 +92,6 @@ const App = () => {
   useEffect(() => {
     createDefaultAdmin();
   }, []);
-
-  // Handle redirect from successful payment
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentSuccess = urlParams.get('payment_success');
-    const lotId = urlParams.get('lotId');
-    const destinationLat = urlParams.get('destinationLat');
-    const destinationLng = urlParams.get('destinationLng');
-
-    if (paymentSuccess === 'true' && lotId && destinationLat && destinationLng && geolocation.data) {
-      // User has returned from successful payment
-      alert("Payment successful! Your spot is reserved. Showing route now.");
-
-      setActiveRoute({
-        origin: { lat: geolocation.data.coords.latitude, lng: geolocation.data.coords.longitude },
-        destination: { lat: parseFloat(destinationLat), lng: parseFloat(destinationLng) }
-      });
-      
-      setSelectedLotOnMap(lotId);
-      setActiveTab('map');
-
-      // Clean up URL to avoid re-triggering on refresh
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [geolocation.data]); // Re-run when geolocation data becomes available
   
   // Listen for auth state changes
   useEffect(() => {
@@ -464,11 +458,44 @@ const App = () => {
     setActiveTab('map');
   };
 
+  const handleInitiatePayment = (details: ReservationDetails) => {
+    setViewState({ name: 'payment', details });
+  };
+
+  const handlePaymentSuccess = (details: { lotId: string, destination: { lat: number, lng: number } }) => {
+    // The success message is now shown on the payment screen itself.
+    if (geolocation.data) {
+        setActiveRoute({
+            origin: { lat: geolocation.data.coords.latitude, lng: geolocation.data.coords.longitude },
+            destination: details.destination
+        });
+        setSelectedLotOnMap(details.lotId);
+        setActiveTab('map');
+        setViewState({ name: 'main' });
+    } else {
+        alert("Could not retrieve your current location to start navigation. Your spot is reserved.");
+        setSelectedLotOnMap(details.lotId);
+        setActiveTab('map');
+        setViewState({ name: 'main' });
+    }
+  };
+
+
   if (user === 'loading') {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
         <SpinnerIcon className="w-12 h-12 text-indigo-500 dark:text-indigo-400" />
       </div>
+    );
+  }
+  
+  if (viewState.name === 'payment') {
+    return (
+        <PaymentScreen 
+            details={viewState.details}
+            onSuccess={handlePaymentSuccess}
+            onCancel={() => setViewState({ name: 'main' })}
+        />
     );
   }
 
@@ -503,8 +530,8 @@ const App = () => {
                   onClearActiveRoute={() => setActiveRoute(null)}
                   unpaidBill={unpaidBill}
                   onOpenPayBillModal={() => setIsPayBillModalOpen(true)}
-                  // FIX: Pass the required onOpenUserDetailsModal prop.
                   onOpenUserDetailsModal={() => setIsUserDetailsModalOpen(true)}
+                  onInitiatePayment={handleInitiatePayment}
                 />;
       case 'notifications':
         return <NotificationsScreen 

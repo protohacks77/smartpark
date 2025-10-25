@@ -52,6 +52,7 @@ interface MapScreenProps {
   unpaidBill: Bill | null;
   onOpenPayBillModal: () => void;
   onOpenUserDetailsModal: () => void;
+  onInitiatePayment: (details: any) => void;
 }
 
 interface MapButtonProps {
@@ -86,6 +87,7 @@ const MapScreen = ({
     unpaidBill,
     onOpenPayBillModal,
     onOpenUserDetailsModal,
+    onInitiatePayment,
 }: MapScreenProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
@@ -391,6 +393,7 @@ const MapScreen = ({
             onClose={() => setTopView('lotInfo')}
             lot={selectedLot}
             user={user}
+            onInitiatePayment={onInitiatePayment}
           />
         );
       

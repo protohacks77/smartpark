@@ -1,31 +1,16 @@
-<<<<<<< HEAD
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ParkingLot, User } from '../types';
-=======
-
-
-import React, { useState, useMemo, useEffect } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { functions, db } from '../services/firebase';
-import type { ParkingLot, User, PaymentIntent } from '../types';
-import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon, WalletIcon, CheckmarkCircleIcon, CloseCircleIcon } from './Icons';
-
-
-
-import React, { useState, useMemo, useEffect } from 'react';
-import type { ParkingLot } from '../types';
->>>>>>> 82d52050ab08fdb6dee5f9414e262605c8fb087f
 import { LocationIcon, CarIcon, ClockIcon, SpinnerIcon } from './Icons';
 
 interface ReservationModalProps {
   onClose: () => void;
   lot: ParkingLot;
   user: User;
+  onInitiatePayment: (details: any) => void;
 }
 
-const ReservationModal = ({ onClose, lot, user }: ReservationModalProps) => {
-  const [step, setStep] = useState<'select' | 'confirm' | 'processing'>('select');
+const ReservationModal = ({ onClose, lot, user, onInitiatePayment }: ReservationModalProps) => {
+  const [step, setStep] = useState<'select' | 'confirm'>('select');
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [hours, setHours] = useState(1);
 
@@ -48,23 +33,18 @@ const ReservationModal = ({ onClose, lot, user }: ReservationModalProps) => {
 
   const handleSubmit = () => {
     if (!selectedSlotId || !user) return;
-    setStep('processing');
     
-    const params = new URLSearchParams({
+    onInitiatePayment({
       lotId: lot.id,
       slotId: selectedSlotId,
-      hours: hours.toString(),
-      amount: totalPrice,
+      hours: hours,
+      amount: parseFloat(totalPrice),
       userId: user.uid,
       email: user.email,
       lotName: lot.name,
-      lotAddress: lot.address,
-      destinationLat: lot.location.latitude.toString(),
-      destinationLng: lot.location.longitude.toString(),
+      destinationLat: lot.location.latitude,
+      destinationLng: lot.location.longitude,
     });
-
-    // Redirect to the new payment page with all necessary details
-    window.location.href = `/payment.html?${params.toString()}`;
   };
 
   return (
@@ -148,15 +128,6 @@ const ReservationModal = ({ onClose, lot, user }: ReservationModalProps) => {
                 </div>
               </div>
             )}
-
-            {step === 'processing' && (
-              <div className="p-6 flex flex-col items-center justify-center min-h-[250px]">
-                <div className="loader"></div>
-                <p className="text-lg font-semibold mt-4">Processing your reservation...</p>
-                <p className="text-gray-500 dark:text-slate-400 text-sm">Please wait a moment.</p>
-              </div>
-            )}
-            
         </div>
     </div>
   );

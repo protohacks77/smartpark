@@ -4,7 +4,7 @@ const { Paynow } = require("paynow");
 function getPaynowInstance(currency) {
     const isUSD = (currency || '').toUpperCase() === 'USD';
     const PAYNOW_ID = isUSD ? process.env.PAYNOW_ID_USD : process.env.PAYNOW_ID_ZWL;
-    const PAYNOW_KEY = isUSD ? process.env.PAYNOW_KEY_USD : process.env.PAYNOW_KEY_ZWL;
+    const PAYNOW_KEY = isUSD ? process.env.PAYNOW_KEY_USD : process.env.[PAYNOW_KEY_ZWL];
 
     if (!PAYNOW_ID || !PAYNOW_KEY) {
         throw new Error(`Missing Paynow credentials for ${isUSD ? 'USD' : 'ZWL'}`);
