@@ -13,15 +13,17 @@ interface SlotEditModalProps {
   // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
   lotLocation: firebase.firestore.GeoPoint;
   existingSlotIds: string[];
+  lotId: string;
 }
 
-const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlotIds }: SlotEditModalProps) => {
+const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlotIds, lotId }: SlotEditModalProps) => {
   const [formData, setFormData] = useState({
     id: '',
     lat: 0,
     lng: 0,
   });
   const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -55,7 +57,7 @@ const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlo
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -69,14 +71,33 @@ const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlo
         return;
     }
 
-    onSave({
-        id: formData.id,
-        isOccupied: slot?.isOccupied || false,
-        coords: {
-            lat: formData.lat,
-            lng: formData.lng
-        }
-    });
+    setIsSaving(true);
+    try {
+      const slotData: ParkingSlot = {
+          id: formData.id,
+          isOccupied: slot?.isOccupied || false,
+          coords: {
+              lat: formData.lat,
+              lng: formData.lng
+          }
+      };
+
+      const method = slot?.id ? 'PUT' : 'POST';
+      const response = await fetch('/api/manage-parking', {
+        method,
+        body: JSON.stringify({ type: 'slot', lotId, ...slotData }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save slot');
+      }
+
+      onSave(slotData);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const inputStyle = "w-full bg-gray-100 dark:bg-slate-900/50 text-gray-900 dark:text-white p-3 rounded-lg border border-gray-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500";

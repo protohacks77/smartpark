@@ -33,6 +33,8 @@ const ReservationModal = ({ onClose, lot, user, onInitiatePayment }: Reservation
   const [step, setStep] = useState<'select' | 'confirm'>('select');
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [hours, setHours] = useState(1);
+  const [selectedCarPlate, setSelectedCarPlate] = useState('');
+  const [newCarPlate, setNewCarPlate] = useState('');
 
   const maxHours = 8;
 
@@ -44,15 +46,43 @@ const ReservationModal = ({ onClose, lot, user, onInitiatePayment }: Reservation
     setStep('select');
     setSelectedSlotId(null);
     setHours(1);
-  }, [lot.id]); // Reset when the lot changes
+    setSelectedCarPlate(user?.defaultCarPlate || (user?.carPlates && user.carPlates[0]) || 'add_new');
+  }, [lot.id, user]); // Reset when the lot changes
 
   const handleSelectSlot = (slotId: string) => {
     setSelectedSlotId(slotId);
     setStep('confirm');
   };
 
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  useEffect(() => {
+    setIsFavorite(user?.favoriteParkingBays?.includes(lot.id + '-' + selectedSlotId) || false);
+  }, [user, lot.id, selectedSlotId]);
+
+  const handleFavorite = async () => {
+    if (!selectedSlotId) return;
+    const parkingBayId = lot.id + '-' + selectedSlotId;
+    const method = isFavorite ? 'DELETE' : 'POST';
+    try {
+      await fetch('/api/update-user-favorites', {
+        method,
+        body: JSON.stringify({ parkingBayId }),
+      });
+      setIsFavorite(!isFavorite);
+    } catch (error) {
+      console.error('Failed to update favorites:', error);
+    }
+  };
+
   const handleSubmit = () => {
     if (!selectedSlotId || !user) return;
+
+    const carPlateToUse = selectedCarPlate === 'add_new' ? newCarPlate : selectedCarPlate;
+    if (!carPlateToUse) {
+        alert("Please select or add a car plate.");
+        return;
+    }
     
     onInitiatePayment({
       lotId: lot.id,
@@ -62,6 +92,7 @@ const ReservationModal = ({ onClose, lot, user, onInitiatePayment }: Reservation
       userId: user.uid,
       email: user.email,
       lotName: lot.name,
+      carPlate: carPlateToUse,
       destinationLat: lot.location.latitude,
       destinationLng: lot.location.longitude,
     });
@@ -122,6 +153,31 @@ const ReservationModal = ({ onClose, lot, user, onInitiatePayment }: Reservation
                 </div>
 
                 <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-500 dark:text-slate-400 mb-2">Select Vehicle</label>
+                    <select
+                        value={selectedCarPlate}
+                        onChange={(e) => setSelectedCarPlate(e.target.value)}
+                        className="w-full bg-gray-100 dark:bg-slate-900/50 text-gray-900 dark:text-white p-3 rounded-lg border border-gray-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        {user?.carPlates?.map(plate => <option key={plate} value={plate}>{plate}</option>)}
+                        <option value="add_new">Add a new car plate</option>
+                    </select>
+                </div>
+
+                {selectedCarPlate === 'add_new' && (
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-500 dark:text-slate-400 mb-2">New Car Plate</label>
+                        <input
+                            type="text"
+                            value={newCarPlate}
+                            onChange={(e) => setNewCarPlate(e.target.value.toUpperCase())}
+                            className="w-full bg-gray-100 dark:bg-slate-900/50 text-gray-900 dark:text-white p-3 rounded-lg border border-gray-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="e.g. ABC-123"
+                        />
+                    </div>
+                )}
+
+                <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-500 dark:text-slate-400 mb-2">Select Duration (max {maxHours} hours)</label>
                     <input 
                         type="range" 
@@ -144,6 +200,12 @@ const ReservationModal = ({ onClose, lot, user, onInitiatePayment }: Reservation
                     </button>
                     <button onClick={handleSubmit} className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-transform hover:scale-105">
                         Confirm & Pay
+                    </button>
+                    <button
+                      onClick={handleFavorite}
+                      className={`p-3 rounded-lg transition-colors ${isFavorite ? 'bg-yellow-400 text-white' : 'bg-gray-200 dark:bg-slate-800 text-gray-800 dark:text-white'}`}
+                    >
+                      <StarIcon className="w-6 h-6" />
                     </button>
                 </div>
               </div>

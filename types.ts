@@ -27,10 +27,12 @@ export interface User {
   uid: string; // Changed from id to uid to match Firebase Auth
   username: string;
   email: string;
-  carPlate: string;
+  carPlates: string[];
+  defaultCarPlate: string;
   ecocashNumber: string;
   lastViewedNotices?: Timestamp;
   favoriteParkingLots?: string[];
+  favoriteParkingBays?: string[];
 }
 
 // This represents the user object combined with their reservations for use in components

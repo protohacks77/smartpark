@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
 import firebase from 'firebase/compat/app';
-import { db } from '../../services/firebase';
 import type { ParkingLot, ParkingSlot } from '../../types';
 import SlotEditModal from './SlotEditModal';
 import { TrashIcon, SpinnerIcon } from '../Icons';
@@ -245,23 +244,23 @@ const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSaveSuccess }: Man
   const handleSaveLot = async (lotData: ParkingLot) => {
     setIsSaving(true);
     try {
-        if (lotData.id) { // Editing existing lot
-            // FIX: Use v8 compat syntax for doc and setDoc.
-            const lotDocRef = db.collection('parkingLots').doc(lotData.id);
-            await lotDocRef.set(lotData, { merge: true });
-        } else { // Creating new lot
-            const { id, ...newLotData } = lotData;
-            // FIX: Use v8 compat syntax for addDoc and collection.
-            await db.collection('parkingLots').add(newLotData);
-        }
-        onSaveSuccess("Parking lot saved successfully!");
-        setView('list');
-        setEditingLot({});
+      const method = lotData.id ? 'PUT' : 'POST';
+      const body = JSON.stringify({ type: 'lot', ...lotData });
+      const response = await fetch('/api/manage-parking', {
+        method,
+        body,
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save parking lot');
+      }
+      onSaveSuccess('Parking lot saved successfully!');
+      setView('list');
+      setEditingLot({});
     } catch (error) {
-        console.error("Failed to save parking lot: ", error);
-        alert("Could not save changes.");
+      console.error('Failed to save parking lot: ', error);
+      alert('Could not save changes.');
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -275,28 +274,18 @@ const ManageParkingModal = ({ isOpen, onClose, parkingLots, onSaveSuccess }: Man
 
     setIsDeleting(true);
     try {
-      // FIX: Use v8 compat syntax for writeBatch.
-      const batch = db.batch();
-      // FIX: Use v8 compat syntax for doc.
-      const lotDocRef = db.collection('parkingLots').doc(lotToDeleteId);
-      batch.delete(lotDocRef);
-
-      // FIX: Use v8 compat syntax for query, collection, and where.
-      const reservationsQuery = db.collection('reservations')
-        .where('parkingLotId', '==', lotToDeleteId);
-
-      // FIX: Use v8 compat syntax for getDocs.
-      const reservationsSnapshot = await reservationsQuery.get();
-      reservationsSnapshot.forEach((doc) => {
-        batch.delete(doc.ref);
+      const response = await fetch('/api/manage-parking', {
+        method: 'DELETE',
+        body: JSON.stringify({ type: 'lot', id: lotToDeleteId }),
       });
-
-      await batch.commit();
-      onSaveSuccess("Parking lot deleted successfully!");
+      if (!response.ok) {
+        throw new Error('Failed to delete parking lot');
+      }
+      onSaveSuccess('Parking lot deleted successfully!');
       setView('list');
     } catch (error) {
-      console.error("Failed to delete parking lot and its reservations: ", error);
-      alert("Could not delete the parking lot. Please try again.");
+      console.error('Failed to delete parking lot: ', error);
+      alert('Could not delete the parking lot. Please try again.');
     } finally {
       setIsDeleting(false);
       setIsConfirmOpen(false);

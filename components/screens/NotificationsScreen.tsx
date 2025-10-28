@@ -71,6 +71,7 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reser
                         <span className="flex items-center gap-1"><CarIcon className="w-4 h-4"/>{notification.data.carPlate}</span>
                         <span className="flex items-center gap-1"><WalletIcon className="w-4 h-4"/>${notification.data.amountPaid?.toFixed(2)}</span>
                         <span className="flex items-center gap-1"><ClockIcon className="w-4 h-4"/>{notification.data.hoursLeft}h reserved</span>
+                        {reservation && <span className="flex items-center gap-1"><ClockIcon className="w-4 h-4"/>{reservation.startTime.toDate().toLocaleDateString()}</span>}
                     </div>
                 )}
                 <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">{notification.timestamp.toDate().toLocaleString()}</p>

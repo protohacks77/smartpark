@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { User } from '../../types';
 import { PersonIcon, CarIcon } from '../Icons';
 
@@ -8,18 +8,19 @@ interface ViewAllUsersModalProps {
   onClose: () => void;
   users: User[];
   onSelectUser: (user: User) => void;
+  onAddUser: () => void;
+  onEditUser: (user: User) => void;
+  onDeleteUser: (uid: string) => void;
 }
 
-// FIX: Define a props interface for UserCard. This fixes an issue where TypeScript
-// would complain about the 'key' prop being passed to the component during a map operation,
-// as the inline object type definition didn't account for React's special props.
 interface UserCardProps {
   user: User;
   onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }
 
-// FIX: Use React.FC to correctly type the functional component, resolving the issue with the 'key' prop.
-const UserCard: React.FC<UserCardProps> = ({ user, onSelect }) => (
+const UserCard: React.FC<UserCardProps> = ({ user, onSelect, onEdit, onDelete }) => (
     <div className="bg-gray-100 dark:bg-slate-900/50 p-4 rounded-lg flex justify-between items-center transition-colors hover:bg-gray-200 dark:hover:bg-slate-800/60">
         <div>
             <p className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -32,18 +33,41 @@ const UserCard: React.FC<UserCardProps> = ({ user, onSelect }) => (
                 <span className="font-mono">{user.carPlate || 'No Plate'}</span>
             </p>
         </div>
-        <button
-            onClick={onSelect}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
-        >
-            View Details
-        </button>
+        <div className="flex gap-2">
+          <button
+              onClick={onSelect}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+              View Details
+          </button>
+          <button
+              onClick={onEdit}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+              Edit
+          </button>
+          <button
+              onClick={onDelete}
+              className="bg-red-600 hover:bg-red-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+              Delete
+          </button>
+        </div>
     </div>
 );
 
 
-const ViewAllUsersModal = ({ isOpen, onClose, users, onSelectUser }: ViewAllUsersModalProps) => {
+const ViewAllUsersModal = ({ isOpen, onClose, users, onSelectUser, onAddUser, onEditUser, onDeleteUser }: ViewAllUsersModalProps) => {
     if (!isOpen) return null;
+    const [showToast, setShowToast] = useState(false);
+
+    const handleDelete = (uid: string) => {
+      if (window.confirm('Are you sure you want to delete this user?')) {
+        onDeleteUser(uid);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+      }
+    };
 
     return (
         <div
@@ -61,7 +85,15 @@ const ViewAllUsersModal = ({ isOpen, onClose, users, onSelectUser }: ViewAllUser
                         <ion-icon name="close-circle" class="w-8 h-8"></ion-icon>
                     </button>
 
-                    <h2 className="text-2xl font-bold text-center mb-6 text-indigo-500 dark:text-indigo-400">All Users ({users.length})</h2>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-bold text-indigo-500 dark:text-indigo-400">All Users ({users.length})</h2>
+                      <button
+                          onClick={onAddUser}
+                          className="bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+                      >
+                          Add User
+                      </button>
+                    </div>
                     
                     <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
                         {users.length > 0 ? (
@@ -70,6 +102,8 @@ const ViewAllUsersModal = ({ isOpen, onClose, users, onSelectUser }: ViewAllUser
                                     key={user.uid}
                                     user={user}
                                     onSelect={() => onSelectUser(user)}
+                                    onEdit={() => onEditUser(user)}
+                                    onDelete={() => handleDelete(user.uid)}
                                 />
                             ))
                         ) : (
@@ -78,6 +112,11 @@ const ViewAllUsersModal = ({ isOpen, onClose, users, onSelectUser }: ViewAllUser
                     </div>
                 </div>
             </div>
+            {showToast && (
+              <div className="absolute bottom-5 bg-green-500 text-white py-2 px-4 rounded-lg">
+                User deleted successfully!
+              </div>
+            )}
         </div>
     );
 };
