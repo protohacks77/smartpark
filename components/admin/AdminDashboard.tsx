@@ -18,6 +18,7 @@ import {
   TrendingUpIcon,
 } from '../Icons';
 import ViewAllUsersModal from './ViewAllUsersModal';
+import AddUserModal from './AddUserModal';
 import ManageParkingModal from './ManageParkingModal';
 import UserDetailModal from './UserDetailModal';
 import AdminSearch from './AdminSearch';
@@ -57,6 +58,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [error, setError] = useState<string | null>(null);
 
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [isParkingModalOpen, setIsParkingModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isNoticesModalOpen, setIsNoticesModalOpen] = useState(false);
@@ -270,6 +272,10 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
             <PersonIcon className="w-10 h-10 text-cyan-500 dark:text-cyan-400 mb-2"/>
             <span className="font-semibold">View All Users</span>
           </button>
+          <button onClick={() => setIsAddUserModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
+            <PersonIcon className="w-10 h-10 text-green-500 dark:text-green-400 mb-2"/>
+            <span className="font-semibold">Add New User</span>
+          </button>
           <button onClick={() => setIsReportModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
             <DocumentTextIcon className="w-10 h-10 text-emerald-500 dark:text-emerald-400 mb-2"/>
             <span className="font-semibold">Generate PDF Report</span>
@@ -302,11 +308,25 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
         onSelectUser={handleSelectUser}
       />
 
+      <AddUserModal
+        isOpen={isAddUserModalOpen}
+        onClose={() => setIsAddUserModalOpen(false)}
+        onUserAdded={(newUser) => {
+          setUsers([...users, newUser]);
+          setToastMessage(`User ${newUser.username} added successfully!`);
+        }}
+      />
+
       {selectedUser && (
         <UserDetailModal
             isOpen={!!selectedUser}
             onClose={handleCloseUserDetail}
             user={selectedUser}
+            onDeleteSuccess={(message) => {
+              setToastMessage(message);
+              setUsers(users.filter(u => u.uid !== selectedUser.uid));
+              setSelectedUser(null);
+            }}
         />
       )}
 
@@ -332,6 +352,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
         isOpen={isNoticesModalOpen}
         onClose={() => setIsNoticesModalOpen(false)}
         notices={notices}
+        users={users}
       />
 
       <ManageReviewsModal

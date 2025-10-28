@@ -6,17 +6,39 @@ import { db } from '../../services/firebase';
 import type { Notice } from '../../types';
 import { TrashIcon, SpinnerIcon } from '../Icons';
 
+import type { User } from '../../types';
+
 interface ManageNoticesModalProps {
   isOpen: boolean;
   onClose: () => void;
   notices: Notice[];
+  users: User[];
 }
 
-const ManageNoticesModal = ({ isOpen, onClose, notices }: ManageNoticesModalProps) => {
+const ManageNoticesModal = ({ isOpen, onClose, notices, users }: ManageNoticesModalProps) => {
   const [view, setView] = useState<'list' | 'form'>('list');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(users.map(user => user.uid));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleUserSelection = (userId: string) => {
+    if (selectedUsers.includes(userId)) {
+      setSelectedUsers(selectedUsers.filter(id => id !== userId));
+    } else {
+      setSelectedUsers([...selectedUsers, userId]);
+    }
+  };
 
   if (!isOpen) return null;
   
@@ -39,6 +61,21 @@ const ManageNoticesModal = ({ isOpen, onClose, notices }: ManageNoticesModalProp
         content,
         timestamp: firebase.firestore.Timestamp.now(),
       });
+
+      // Create notifications for selected users
+      const batch = db.batch();
+      selectedUsers.forEach(userId => {
+        const notificationRef = db.collection('notifications').doc();
+        batch.set(notificationRef, {
+          userId,
+          type: 'GENERIC',
+          message: `New notice: ${title}`,
+          isRead: false,
+          timestamp: firebase.firestore.Timestamp.now(),
+        });
+      });
+      await batch.commit();
+
       setView('list');
     } catch (error) {
       console.error('Error publishing notice:', error);
@@ -113,6 +150,21 @@ const ManageNoticesModal = ({ isOpen, onClose, notices }: ManageNoticesModalProp
                     <div>
                         <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Content</label>
                         <textarea value={content} onChange={e => setContent(e.target.value)} className={inputStyle} rows={5} placeholder="Enter the notice details here..."></textarea>
+                    </div>
+                    <div>
+                        <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Notify Users</label>
+                        <div className="flex items-center gap-2">
+                            <input type="checkbox" checked={selectAll} onChange={handleSelectAll} />
+                            <span>Select All Users</span>
+                        </div>
+                        <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
+                            {users.map(user => (
+                                <div key={user.uid} className="flex items-center gap-2">
+                                    <input type="checkbox" checked={selectedUsers.includes(user.uid)} onChange={() => handleUserSelection(user.uid)} />
+                                    <span>{user.username}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
                  <div className="flex gap-4 pt-6">

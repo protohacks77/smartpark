@@ -175,7 +175,7 @@ const HomeScreen = ({ user, parkingLots, onFindParking, onEditDetails, onLeaveRe
                     <p className="font-semibold text-gray-900 dark:text-white">{p.parkingLotName} - Slot {p.slotId.toUpperCase()}</p>
                 </div>
                 <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400">
-                    <div className="flex items-center gap-2"><ClockIcon/>{p.durationHours} hours</div>
+                    <div className="flex items-center gap-2"><ClockIcon/>{p.startTime.toDate().toLocaleDateString()}</div>
                     <div className="flex items-center gap-2"><WalletIcon/>${p.amountPaid.toFixed(2)}</div>
                 </div>
               </div>

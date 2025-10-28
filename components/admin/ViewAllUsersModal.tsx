@@ -29,7 +29,7 @@ const UserCard: React.FC<UserCardProps> = ({ user, onSelect }) => (
             <p className="text-sm text-gray-500 dark:text-slate-400">{user.email}</p>
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-2">
                 <CarIcon className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />
-                <span className="font-mono">{user.carPlate || 'No Plate'}</span>
+                <span className="font-mono">{user.carPlates?.[0] || 'No Plate'}</span>
             </p>
         </div>
         <button
