@@ -4,8 +4,8 @@
 # This tells Netlify how to build your site for production.
 [build]
   # The command to run to build your site.
-  # This usually runs a script in your package.json.
-  command = "npm run build"
+  # This now includes a step to install Netlify Function dependencies.
+  command = "cd netlify && npm install && cd .. && npm run build"
   
   # The directory that contains the built static files (like index.html).
   # This is typically "dist" for Vite or "build" for Create React App.
