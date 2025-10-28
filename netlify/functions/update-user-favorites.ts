@@ -1,6 +1,7 @@
 import { Handler } from '@netlify/functions';
-import { admin } from '../../services/firebase';
-import * as firebase from 'firebase-admin';
+import * as admin from 'firebase-admin';
+
+admin.initializeApp();
 
 const handler: Handler = async (event, context) => {
   const db = admin.firestore();

@@ -1,5 +1,7 @@
 import { Handler } from '@netlify/functions';
-import { admin } from '../../services/firebase';
+import * as admin from 'firebase-admin';
+
+admin.initializeApp();
 
 const handler: Handler = async (event, context) => {
   if (event.httpMethod === 'POST') {
