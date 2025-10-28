@@ -472,12 +472,15 @@ const MapScreen = ({
                 <MapButton onClick={handleRecenter} title="Recenter">
                     <LocationIcon />
                 </MapButton>
-                {topView === 'lotInfo' && (
-                    <button onClick={handleOpenReservationModal} title="Reserve a Spot" className="bg-gradient-to-r from-indigo-500 to-purple-500 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg animate-pulse transition-transform hover:scale-110">
-                        <CarIcon />
-                    </button>
-                )}
             </div>
+            {topView === 'lotInfo' && (
+                <div className="absolute top-36 left-1/2 -translate-x-1/2 z-[401]">
+                    <button onClick={handleOpenReservationModal} title="Reserve a Spot" className="bg-gradient-to-r from-indigo-500 to-purple-500 w-48 h-12 rounded-lg flex items-center justify-center text-white shadow-lg animate-pulse transition-transform hover:scale-110">
+                        <CarIcon />
+                        <span className="ml-2">Reserve Parking</span>
+                    </button>
+                </div>
+            )}
         </>
        )}
     </div>

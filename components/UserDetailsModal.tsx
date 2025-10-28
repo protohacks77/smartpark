@@ -6,26 +6,38 @@ import { CarIcon, WalletIcon } from './Icons';
 interface UserDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (details: { carPlate: string; ecocashNumber: string }) => void;
+  onSave: (details: { carPlates: string[]; ecocashNumber: string }) => void;
   user: User | null;
 }
 
 const UserDetailsModal = ({ isOpen, onClose, onSave, user }: UserDetailsModalProps) => {
-  const [carPlate, setCarPlate] = useState('');
+  const [carPlates, setCarPlates] = useState<string[]>([]);
+  const [newCarPlate, setNewCarPlate] = useState('');
   const [ecocashNumber, setEcocashNumber] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setCarPlate(user?.carPlate || '');
+      setCarPlates(user?.carPlates || []);
       setEcocashNumber(user?.ecocashNumber || '');
     }
   }, [user, isOpen]);
 
   if (!isOpen) return null;
 
+  const handleAddCarPlate = () => {
+    if (newCarPlate.trim() !== '' && !carPlates.includes(newCarPlate.trim())) {
+      setCarPlates([...carPlates, newCarPlate.trim()]);
+      setNewCarPlate('');
+    }
+  };
+
+  const handleRemoveCarPlate = (plateToRemove: string) => {
+    setCarPlates(carPlates.filter(plate => plate !== plateToRemove));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ carPlate, ecocashNumber });
+    onSave({ carPlates, ecocashNumber });
   };
 
   return (
@@ -49,17 +61,25 @@ const UserDetailsModal = ({ isOpen, onClose, onSave, user }: UserDetailsModalPro
             
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Car Number Plate</label>
-                <div className="relative">
+                <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Car Number Plates</label>
+                <div className="space-y-2">
+                  {carPlates.map(plate => (
+                    <div key={plate} className="flex items-center justify-between bg-gray-100 dark:bg-slate-900/50 p-2 rounded-lg">
+                      <span className="font-mono text-gray-900 dark:text-white">{plate}</span>
+                      <button type="button" onClick={() => handleRemoveCarPlate(plate)} className="text-pink-500 hover:text-pink-700">Remove</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="relative mt-2">
                   <CarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 w-5 h-5"/>
                   <input 
                     type="text" 
-                    value={carPlate}
-                    onChange={(e) => setCarPlate(e.target.value.toUpperCase())}
+                    value={newCarPlate}
+                    onChange={(e) => setNewCarPlate(e.target.value.toUpperCase())}
                     className="w-full bg-gray-100 dark:bg-slate-900/50 text-gray-900 dark:text-white p-3 pl-10 rounded-lg border border-gray-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                     placeholder="AEF-123"
-                    required
                   />
+                  <button type="button" onClick={handleAddCarPlate} className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-500 text-white px-2 py-1 rounded-md">Add</button>
                 </div>
               </div>
               <div>

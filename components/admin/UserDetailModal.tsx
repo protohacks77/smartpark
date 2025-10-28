@@ -10,6 +10,7 @@ interface UserDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User;
+  onDeleteSuccess: (message: string) => void;
 }
 
 const DetailRow = ({ icon, label, value, name, isEditing, onChange }: { icon: React.ReactNode, label: string, value: string, name: string, isEditing: boolean, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) => {
@@ -31,14 +32,14 @@ const DetailRow = ({ icon, label, value, name, isEditing, onChange }: { icon: Re
     );
 };
 
-const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
+const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailModalProps) => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
-    carPlate: '',
+    carPlates: [] as string[],
     ecocashNumber: '',
   });
 
@@ -46,12 +47,20 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
   const [messageText, setMessageText] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isBilling, setIsBilling] = useState(false);
+  const [newCarPlate, setNewCarPlate] = useState('');
+
+  const handleAddCarPlate = () => {
+    if (newCarPlate.trim() !== '' && !formData.carPlates.includes(newCarPlate.trim())) {
+      setFormData(prev => ({ ...prev, carPlates: [...prev.carPlates, newCarPlate.trim()] }));
+      setNewCarPlate('');
+    }
+  };
 
   useEffect(() => {
     if (user) {
         setFormData({
             username: user.username,
-            carPlate: user.carPlate || '',
+            carPlates: user.carPlates || [],
             ecocashNumber: user.ecocashNumber || '',
         });
         setIsEditing(false); // Reset edit mode when user changes
@@ -112,6 +121,7 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
             // FIX: Use v8 compat syntax for deleteDoc and doc.
             await db.collection('users').doc(user.uid).delete();
             // In a real-world scenario, you might want a cloud function to delete associated data (reservations, auth user, etc.)
+            onDeleteSuccess(`User ${user.username} deleted successfully.`);
             onClose();
         } catch (error) {
             console.error("Error deleting user:", error);
@@ -225,7 +235,28 @@ const UserDetailModal = ({ isOpen, onClose, user }: UserDetailModalProps) => {
               <PersonIcon className="w-5 h-5 text-indigo-400 dark:text-indigo-300" />
               <p><span className="text-gray-500 dark:text-slate-400">Email:</span> <span className="font-semibold">{user.email}</span></p>
             </div>
-            <DetailRow icon={<CarIcon className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />} label="Car Plate" name="carPlate" value={formData.carPlate} isEditing={isEditing} onChange={handleInputChange} />
+            <div className="flex items-center gap-3">
+              <CarIcon className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />
+              <div className="flex-grow">
+                <p className="text-gray-500 dark:text-slate-400 mb-2">Car Plates:</p>
+                <div className="space-y-2">
+                  {formData.carPlates.map(plate => (
+                    <div key={plate} className="flex items-center justify-between bg-gray-200 dark:bg-slate-800/60 p-2 rounded-md">
+                      <span className="font-mono text-gray-900 dark:text-white">{plate}</span>
+                      {isEditing && (
+                        <button type="button" onClick={() => setFormData(prev => ({ ...prev, carPlates: prev.carPlates.filter(p => p !== plate) }))} className="text-pink-500 hover:text-pink-700">Remove</button>
+                      )}
+                    </div>
+                  ))}
+                  {isEditing && (
+                    <div className="flex items-center gap-2">
+                      <input type="text" value={newCarPlate} onChange={(e) => setNewCarPlate(e.target.value.toUpperCase())} className="w-full bg-gray-200 dark:bg-slate-800/60 text-gray-900 dark:text-white p-2 rounded-md border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="New Plate" />
+                      <button type="button" onClick={handleAddCarPlate} className="bg-indigo-500 text-white px-2 py-1 rounded-md">Add</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             <DetailRow icon={<WalletIcon className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />} label="Ecocash" name="ecocashNumber" value={formData.ecocashNumber} isEditing={isEditing} onChange={handleInputChange} />
           </div>
 

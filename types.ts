@@ -27,7 +27,7 @@ export interface User {
   uid: string; // Changed from id to uid to match Firebase Auth
   username: string;
   email: string;
-  carPlate: string;
+  carPlates: string[];
   ecocashNumber: string;
   lastViewedNotices?: Timestamp;
   favoriteParkingLots?: string[];
