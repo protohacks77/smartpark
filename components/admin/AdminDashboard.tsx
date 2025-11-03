@@ -19,7 +19,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import OccupancyMap from './OccupancyMap';
 import AdminSearch from './AdminSearch';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 const StatCard = ({ title, value, data, dataKey, color }: { title: string, value: string, data: any[], dataKey: string, color: string }) => (
     <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md">
@@ -221,6 +221,33 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
     }
   };
 
+  const totalRevenue = reservations.reduce((sum, res) => sum + res.amountPaid, 0);
+
+  const filteredReservations = useMemo(() => {
+    if (!searchQuery) return reservations;
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return reservations.filter(res => {
+      const user = users.find(u => u.uid === res.userId);
+      return res.parkingLotName.toLowerCase().includes(lowerCaseQuery) ||
+             res.slotId.toLowerCase().includes(lowerCaseQuery) ||
+             (user && user.username && user.username.toLowerCase().includes(lowerCaseQuery)) ||
+             (user && user.carPlates && user.carPlates.some(plate => plate.toLowerCase().includes(lowerCaseQuery)));
+    });
+  }, [searchQuery, reservations, users]);
+
+  const handleSearchResultSelect = (result: { type: 'user' | 'lot' | 'slot', data: any }) => {
+    if (result.type === 'user') {
+      handleSelectUser(result.data as User);
+    } else if (result.type === 'lot') {
+      setSelectedLocation({ lot: result.data as ParkingLot });
+    } else if (result.type === 'slot') {
+      const lot = parkingLots.find(p => p.id === result.data.lotId);
+      if (lot) {
+        setSelectedLocation({ lot, slotId: result.data.id });
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
@@ -237,20 +264,6 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
       </div>
     );
   }
-
-  const totalRevenue = reservations.reduce((sum, res) => sum + res.amountPaid, 0);
-
-  const filteredReservations = useMemo(() => {
-    if (!searchQuery) return reservations;
-    const lowerCaseQuery = searchQuery.toLowerCase();
-    return reservations.filter(res => {
-      const user = users.find(u => u.uid === res.userId);
-      return res.parkingLotName.toLowerCase().includes(lowerCaseQuery) ||
-             res.slotId.toLowerCase().includes(lowerCaseQuery) ||
-             user?.username.toLowerCase().includes(lowerCaseQuery) ||
-             user?.carPlates?.some(plate => plate.toLowerCase().includes(lowerCaseQuery));
-    });
-  }, [searchQuery, reservations, users]);
 
   return (
     <div className={`flex h-screen bg-gray-100 text-gray-900 font-sans ${theme}`}>
