@@ -18,6 +18,7 @@ import ManageReviewsModal from './ManageReviewsModal';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import OccupancyMap from './OccupancyMap';
+import AdminSearch from './AdminSearch';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 
 const StatCard = ({ title, value, data, dataKey, color }: { title: string, value: string, data: any[], dataKey: string, color: string }) => (
@@ -26,9 +27,15 @@ const StatCard = ({ title, value, data, dataKey, color }: { title: string, value
         <p className="text-3xl font-bold">{value}</p>
         <div className="h-16 mt-2">
             <ResponsiveContainer>
-                <LineChart data={data}>
-                    <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} />
-                </LineChart>
+                <AreaChart data={data}>
+                    <defs>
+                        <linearGradient id={color} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor={color} stopOpacity={0}/>
+                        </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey={dataKey} stroke={color} fillOpacity={1} fill={`url(#${color})`} isAnimationActive={true} />
+                </AreaChart>
             </ResponsiveContainer>
         </div>
     </div>
@@ -50,7 +57,7 @@ const DonutChartCard = ({ title, value, percentage, color }: { title: string, va
                     strokeWidth="3"
                 />
                 <path
-                    className={color}
+                    className={`${color} transition-all duration-1000 ease-in-out`}
                     d="M18 2.0845
                       a 15.9155 15.9155 0 0 1 0 31.831
                       a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -85,6 +92,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{lot: ParkingLot, slotId?: string} | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   useEffect(() => {
     if (toastMessage) {
@@ -232,13 +240,26 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
 
   const totalRevenue = reservations.reduce((sum, res) => sum + res.amountPaid, 0);
 
+  const filteredReservations = useMemo(() => {
+    if (!searchQuery) return reservations;
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return reservations.filter(res => {
+      const user = users.find(u => u.uid === res.userId);
+      return res.parkingLotName.toLowerCase().includes(lowerCaseQuery) ||
+             res.slotId.toLowerCase().includes(lowerCaseQuery) ||
+             user?.username.toLowerCase().includes(lowerCaseQuery) ||
+             user?.carPlates?.some(plate => plate.toLowerCase().includes(lowerCaseQuery));
+    });
+  }, [searchQuery, reservations, users]);
+
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-white font-sans">
+    <div className={`flex h-screen bg-gray-100 text-gray-900 font-sans ${theme}`}>
       <Sidebar onLogout={onLogout} theme={theme} onThemeToggle={onThemeToggle} onNavigate={handleNavigate} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onSearch={() => {}} />
+        <Header onSearch={setSearchQuery} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-slate-900 p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <AdminSearch users={users} parkingLots={parkingLots} onResultSelect={handleSearchResultSelect} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-4">
             <StatCard title="Total Revenue" value={`$${totalRevenue.toFixed(2)}`} data={chartData} dataKey="revenue" color="#8884d8" />
             <StatCard title="Reservations" value={reservations.length.toString()} data={chartData} dataKey="reservations" color="#82ca9d" />
             <StatCard title="Users" value={users.length.toString()} data={chartData} dataKey="users" color="#ffc658" />
@@ -252,6 +273,9 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
               <DonutChartCard title="New Users" value={users.length.toString()} percentage={newUserPercentage} color="text-green-500" />
               <DonutChartCard title="New Reviews" value={reviews.length.toString()} percentage={newReviewsPercentage} color="text-blue-500" />
             </div>
+          </div>
+          <div className="mt-4">
+            <LiveOccupancyTable reservations={filteredReservations} users={users} />
           </div>
         </main>
       </div>

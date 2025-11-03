@@ -30,16 +30,15 @@ const Sidebar = ({ onLogout, theme, onThemeToggle, onNavigate }: SidebarProps) =
     <>
       <div className={`bg-gray-800 text-white w-64 p-4 flex-col h-screen fixed lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center">
-            <img src="/logo.png" alt="Logo" className="w-10 h-10 mr-2" />
-            <h1 className="text-2xl font-bold">SmartPark</h1>
-          </div>
+          <h1 className="text-2xl font-bold">SmartPark</h1>
           <button className="lg:hidden" onClick={() => setIsOpen(false)}>
             <CloseCircleIcon className="w-6 h-6" />
           </button>
         </div>
         <div className="flex items-center mb-8">
-          <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Admin" className="w-12 h-12 rounded-full mr-4" />
+          <div className="w-12 h-12 rounded-full mr-4 bg-indigo-500 flex items-center justify-center">
+            <span className="text-2xl font-bold">A</span>
+          </div>
           <div>
             <h2 className="font-bold">Admin</h2>
             <p className="text-sm text-gray-400">Administrator</p>

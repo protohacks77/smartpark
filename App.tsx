@@ -556,9 +556,7 @@ const App = () => {
     }
   };
 
-  if (isAdmin) {
-    return <AdminDashboard onLogout={handleLogout} theme={theme} onThemeToggle={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />;
-  }
+  return <AdminDashboard onLogout={handleLogout} theme={theme} onThemeToggle={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />;
 
   return (
     <div className="relative h-screen w-screen overflow-hidden text-gray-900 dark:text-white">
