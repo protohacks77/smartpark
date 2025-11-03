@@ -12,7 +12,7 @@ import {
   SunIcon,
   TrendingUpIcon,
   MenuIcon,
-  CloseIcon,
+  CloseCircleIcon,
 } from '../Icons';
 import type { Theme } from '../../types';
 
@@ -35,7 +35,7 @@ const Sidebar = ({ onLogout, theme, onThemeToggle, onNavigate }: SidebarProps) =
             <h1 className="text-2xl font-bold">SmartPark</h1>
           </div>
           <button className="lg:hidden" onClick={() => setIsOpen(false)}>
-            <CloseIcon className="w-6 h-6" />
+            <CloseCircleIcon className="w-6 h-6" />
           </button>
         </div>
         <div className="flex items-center mb-8">
