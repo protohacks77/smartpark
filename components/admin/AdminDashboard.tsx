@@ -15,6 +15,7 @@ import LocationInfoModal from './LocationInfoModal';
 import ReportGenerationModal from './ReportGenerationModal';
 import ManageNoticesModal from './ManageNoticesModal';
 import ManageReviewsModal from './ManageReviewsModal';
+import LiveOccupancyTable from './LiveOccupancyTable';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import OccupancyMap from './OccupancyMap';
