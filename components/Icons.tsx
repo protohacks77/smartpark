@@ -25,7 +25,7 @@ export const CarIcon = ({ className = "w-6 h-6" }) => <ion-icon name="car-sport-
 export const WalletIcon = ({ className = "w-6 h-6" }) => <ion-icon name="wallet-outline" class={className}></ion-icon>;
 export const ClockIcon = ({ className = "w-6 h-6" }) => <ion-icon name="time-outline" class={className}></ion-icon>;
 export const CheckmarkCircleIcon = ({ className = "w-6 h-6" }) => <ion-icon name="checkmark-circle-outline" class={className}></ion-icon>;
-export const CloseCircleIcon = ({ className = "w-6 h-6" }) => <ion-icon name="close-circle-outline" class={className}></ion-icon>;
+export const CloseIcon = ({ className = "w-6 h-6" }) => <ion-icon name="close-circle-outline" class={className}></ion-icon>;
 export const LocationIcon = ({ className = "w-6 h-6" }) => <ion-icon name="location-outline" class={className}></ion-icon>;
 export const TrashIcon = ({ className = "w-6 h-6" }) => <ion-icon name="trash-outline" class={className}></ion-icon>;
 export const AddIcon = ({ className = "w-6 h-6" }) => <ion-icon name="add-circle-outline" class={className}></ion-icon>;
