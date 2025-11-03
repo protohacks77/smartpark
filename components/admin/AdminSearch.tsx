@@ -38,15 +38,15 @@ const AdminSearch = ({ users, parkingLots, onResultSelect }: AdminSearchProps) =
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search for users, car plates, or slots..."
-        className="w-full bg-white dark:bg-slate-800 text-gray-900 dark:text-white py-2 px-4 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white py-2 px-4 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
       />
       {searchResults.length > 0 && (
-        <div className="absolute top-full left-0 right-0 bg-white dark:bg-slate-800 rounded-lg shadow-md mt-2 z-10">
+        <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-md mt-2 z-10 text-white">
           {searchResults.slice(0, 5).map((result, index) => (
             <div
               key={index}
               onClick={() => onResultSelect(result)}
-              className="p-4 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer flex items-center gap-4"
+              className="p-4 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center gap-4"
             >
               {result.type === 'user' && <PersonIcon />}
               {result.type === 'lot' && <LayersIcon />}

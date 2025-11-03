@@ -91,7 +91,7 @@ const Sidebar = ({ onLogout, theme, onThemeToggle, onNavigate }: SidebarProps) =
           </ul>
         </nav>
         <div>
-          <div className="flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer" onClick={onThemeToggle}>
+          <div className="flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer" onClick={onThemeToggle} data-testid="theme-toggle">
             {theme === 'dark' ? <SunIcon className="w-6 h-6 mr-2" /> : <MoonIcon className="w-6 h-6 mr-2" />}
             Toggle Theme
           </div>

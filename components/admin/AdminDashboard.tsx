@@ -21,10 +21,11 @@ import Header from './Header';
 import OccupancyMap from './OccupancyMap';
 import AdminSearch from './AdminSearch';
 import { LineChart, Line, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import './animations.css';
 
 const StatCard = ({ title, value, data, dataKey, color }: { title: string, value: string, data: any[], dataKey: string, color: string }) => (
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md">
-        <p className="text-gray-500 dark:text-slate-400">{title}</p>
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-white animate-slide-in">
+        <p className="text-gray-400">{title}</p>
         <p className="text-3xl font-bold">{value}</p>
         <div className="h-16 mt-2">
             <ResponsiveContainer>
@@ -43,13 +44,13 @@ const StatCard = ({ title, value, data, dataKey, color }: { title: string, value
 );
 
 const DonutChartCard = ({ title, value, percentage, color }: { title: string, value: string, percentage: number, color: string }) => (
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md flex flex-col items-center">
-        <p className="text-gray-500 dark:text-slate-400">{title}</p>
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex flex-col items-center text-white animate-slide-in">
+        <p className="text-gray-400">{title}</p>
         <p className="text-3xl font-bold">{value}</p>
         <div className="w-24 h-24 relative mt-2">
             <svg className="w-full h-full" viewBox="0 0 36 36">
                 <path
-                    className="text-gray-200 dark:text-slate-700"
+                    className="text-gray-700"
                     d="M18 2.0845
                       a 15.9155 15.9155 0 0 1 0 31.831
                       a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -273,7 +274,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
       <Sidebar onLogout={onLogout} theme={theme} onThemeToggle={onThemeToggle} onNavigate={handleNavigate} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header onSearch={setSearchQuery} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-slate-900 p-4">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 p-4">
           <AdminSearch users={users} parkingLots={parkingLots} onResultSelect={handleSearchResultSelect} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-4">
             <StatCard title="Total Revenue" value={`$${totalRevenue.toFixed(2)}`} data={chartData} dataKey="revenue" color="#8884d8" />
@@ -283,7 +284,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {isMapVisible && (
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 animate-slide-in">
                 <OccupancyMap parkingLots={parkingLots} />
               </div>
             )}
@@ -292,7 +293,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
               <DonutChartCard title="New Reviews" value={reviews.length.toString()} percentage={newReviewsPercentage} color="text-blue-500" />
             </div>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 animate-slide-in">
             <LiveOccupancyTable reservations={filteredReservations} users={users} />
           </div>
         </main>
