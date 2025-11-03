@@ -94,6 +94,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [selectedLocation, setSelectedLocation] = useState<{lot: ParkingLot, slotId?: string} | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMapVisible, setIsMapVisible] = useState(true);
   
   useEffect(() => {
     if (toastMessage) {
@@ -198,6 +199,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   };
   
   const handleNavigate = (view: string) => {
+    setIsMapVisible(view === 'dashboard');
     switch (view) {
       case 'users':
         setIsUsersModalOpen(true);
@@ -280,10 +282,12 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
             <StatCard title="Notices" value={notices.length.toString()} data={chartData} dataKey="notices" color="#ff8042" />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <OccupancyMap parkingLots={parkingLots} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+            {isMapVisible && (
+              <div className="lg:col-span-2">
+                <OccupancyMap parkingLots={parkingLots} />
+              </div>
+            )}
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isMapVisible ? 'lg:grid-cols-1' : 'lg:col-span-3 lg:grid-cols-4'}`}>
               <DonutChartCard title="New Users" value={users.length.toString()} percentage={newUserPercentage} color="text-green-500" />
               <DonutChartCard title="New Reviews" value={reviews.length.toString()} percentage={newReviewsPercentage} color="text-blue-500" />
             </div>

@@ -47,7 +47,7 @@ const Sidebar = ({ onLogout, theme, onThemeToggle, onNavigate }: SidebarProps) =
         <nav className="flex-grow">
           <ul>
             <li className="mb-4">
-              <a href="#" onClick={() => onNavigate('dashboard')} className="flex items-center p-2 rounded-lg hover:bg-gray-700">
+              <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('dashboard'); }} className="flex items-center p-2 rounded-lg hover:bg-gray-700">
                 <BarChartIcon className="w-6 h-6 mr-2" />
                 Dashboard
               </a>
