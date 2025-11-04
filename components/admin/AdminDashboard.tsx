@@ -20,24 +20,26 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import OccupancyMap from './OccupancyMap';
 import AdminSearch from './AdminSearch';
-import { LineChart, Line, ResponsiveContainer, AreaChart, Area, XAxis, YAxis } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import './animations.css';
 
 const StatCard = ({ title, value, data, dataKey, color }: { title: string, value: string, data: any[], dataKey: string, color: string }) => (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-white animate-slide-in border border-gray-200 dark:border-gray-700">
         <p className="text-gray-400">{title}</p>
         <p className="text-3xl font-bold">{value}</p>
-        <div className="h-16 mt-2">
-            <ResponsiveContainer>
-                <AreaChart data={data}>
+        <div className="h-32 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                     <defs>
                         <linearGradient id={color} x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor={color} stopOpacity={0}/>
+                            <stop offset="95%" stopColor={color} stopOpacity={0.1}/>
                         </linearGradient>
                     </defs>
-                    <XAxis dataKey="name" />
-                    <YAxis />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                    <XAxis dataKey="name" stroke="gray" tick={{ fill: 'gray' }} />
+                    <YAxis stroke="gray" tick={{ fill: 'gray' }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.9)', border: '1px solid rgba(255, 255, 255, 0.2)' }} />
                     <Area type="monotone" dataKey={dataKey} stroke={color} fillOpacity={1} fill={`url(#${color})`} isAnimationActive={true} />
                 </AreaChart>
             </ResponsiveContainer>
