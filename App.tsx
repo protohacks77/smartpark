@@ -92,6 +92,28 @@ const App = () => {
   useEffect(() => {
     createDefaultAdmin();
   }, []);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (sessionStorage.getItem('isAdmin')) {
+        handleLogout();
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      if (isAdmin) {
+        sessionStorage.setItem('isAdmin', 'true');
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    handleRefresh();
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isAdmin]);
   
   // Listen for auth state changes
   useEffect(() => {

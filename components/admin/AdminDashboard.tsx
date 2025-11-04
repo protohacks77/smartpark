@@ -1,53 +1,85 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
 import { db } from '../../services/firebase';
 import type { User, Reservation, ParkingLot, Theme, Notice, Review } from '../../types';
 import {
   BarChartIcon,
-  CashIcon,
-  ChatbubblesIcon,
-  DocumentTextIcon,
-  LayersIcon,
-  LogOutIcon,
-  MoonIcon,
-  NewspaperIcon,
   PersonIcon,
-  SpinnerIcon,
-  SunIcon,
   TrendingUpIcon,
+  SpinnerIcon,
 } from '../Icons';
 import ViewAllUsersModal from './ViewAllUsersModal';
 import AddUserModal from './AddUserModal';
 import ManageParkingModal from './ManageParkingModal';
 import UserDetailModal from './UserDetailModal';
-import AdminSearch from './AdminSearch';
 import LocationInfoModal from './LocationInfoModal';
-import RevenueChart from './RevenueChart';
-import LiveOccupancyTable from './LiveOccupancyTable';
 import ReportGenerationModal from './ReportGenerationModal';
 import ManageNoticesModal from './ManageNoticesModal';
 import ManageReviewsModal from './ManageReviewsModal';
+import LiveOccupancyTable from './LiveOccupancyTable';
+import Sidebar from './Sidebar';
+import Header from './Header';
+import OccupancyMap from './OccupancyMap';
+import AdminSearch from './AdminSearch';
+import { LineChart, Line, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import './animations.css';
 
-// Card component for dashboard items
-const StatCard = ({ icon, title, value, detail }: { icon: React.ReactNode, title: string, value: string, detail?: string }) => (
-    <div className="group relative flex flex-col rounded-xl bg-white dark:bg-slate-950 p-4 shadow-lg dark:shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-indigo-500/20">
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-10 dark:opacity-20 blur-sm transition-opacity duration-300 group-hover:opacity-20 dark:group-hover:opacity-30"></div>
-      <div className="absolute inset-px rounded-[11px] bg-white dark:bg-slate-950"></div>
-      <div className="relative">
-        <div className="flex items-center gap-4">
-          <div className="bg-gray-100 dark:bg-slate-800 p-3 rounded-lg">{icon}</div>
-          <div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">{title}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
-          </div>
+const StatCard = ({ title, value, data, dataKey, color }: { title: string, value: string, data: any[], dataKey: string, color: string }) => (
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-white animate-slide-in border border-gray-200 dark:border-gray-700">
+        <p className="text-gray-400">{title}</p>
+        <p className="text-3xl font-bold">{value}</p>
+        <div className="h-32 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                    <defs>
+                        <linearGradient id={color} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor={color} stopOpacity={0.1}/>
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                    <XAxis dataKey="name" stroke="gray" tick={{ fill: 'gray' }} />
+                    <YAxis stroke="gray" tick={{ fill: 'gray' }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.9)', border: '1px solid rgba(255, 255, 255, 0.2)' }} />
+                    <Area type="monotone" dataKey={dataKey} stroke={color} fillOpacity={1} fill={`url(#${color})`} isAnimationActive={true} />
+                </AreaChart>
+            </ResponsiveContainer>
         </div>
-        {detail && <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">{detail}</p>}
-      </div>
     </div>
 );
 
-// AdminDashboard component
+const DonutChartCard = ({ title, value, percentage, color }: { title: string, value: string, percentage: number, color: string }) => (
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex flex-col items-center text-white animate-slide-in border border-gray-200 dark:border-gray-700">
+        <p className="text-gray-400">{title}</p>
+        <p className="text-3xl font-bold">{value}</p>
+        <div className="w-24 h-24 relative mt-2">
+            <svg className="w-full h-full" viewBox="0 0 36 36">
+                <path
+                    className="text-gray-700"
+                    d="M18 2.0845
+                      a 15.9155 15.9155 0 0 1 0 31.831
+                      a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                />
+                <path
+                    className={`${color} transition-all duration-1000 ease-in-out`}
+                    d="M18 2.0845
+                      a 15.9155 15.9155 0 0 1 0 31.831
+                      a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeDasharray={`${percentage}, 100`}
+                />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+                <p className="text-xl font-bold">{percentage.toFixed(0)}%</p>
+            </div>
+        </div>
+    </div>
+);
+
 const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => void, theme: Theme, onThemeToggle: () => void }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -66,10 +98,9 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{lot: ParkingLot, slotId?: string} | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isMapVisible, setIsMapVisible] = useState(true);
   
-  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
-  const [revenueFilter, setRevenueFilter] = useState<'day' | 'week' | 'month'>('week');
-
   useEffect(() => {
     if (toastMessage) {
         const timer = setTimeout(() => setToastMessage(null), 3000);
@@ -81,10 +112,8 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
     setIsLoading(true);
     setError(null);
   
-    // Fetch non-realtime data
     const fetchStaticData = async () => {
       try {
-        // FIX: Use v8 compat syntax for getDocs and collection.
         const usersPromise = db.collection('users').get();
         const reservationsPromise = db.collection('reservations').get();
         const [usersSnapshot, reservationsSnapshot] = await Promise.all([usersPromise, reservationsPromise]);
@@ -96,11 +125,8 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
       }
     };
   
-    // Set up real-time listener for parking lots
-    // FIX: Use v8 compat syntax for onSnapshot and collection.
     const unsubscribeLots = db.collection('parkingLots').onSnapshot((snapshot) => {
       setParkingLots(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ParkingLot[]);
-      // After the first successful fetch of lots, fetch the rest and hide loader
       if (isLoading) {
         fetchStaticData().finally(() => setIsLoading(false));
       }
@@ -111,13 +137,10 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
     });
   
     return () => unsubscribeLots();
-  }, []); // Should run only once on mount
-  
-  // Real-time listener for notices
+  }, []);
+
   useEffect(() => {
-    // FIX: Use v8 compat syntax for query, collection, and orderBy.
     const q = db.collection('notices').orderBy('timestamp', 'desc');
-    // FIX: Use v8 compat syntax for onSnapshot.
     const unsubscribe = q.onSnapshot((querySnapshot) => {
         setNotices(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notice[]);
     }, (err) => {
@@ -128,11 +151,8 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
     return () => unsubscribe();
   }, []);
 
-  // Real-time listener for reviews
   useEffect(() => {
-    // FIX: Use v8 compat syntax for query, collection, and orderBy.
     const q = db.collection('reviews').orderBy('timestamp', 'desc');
-    // FIX: Use v8 compat syntax for onSnapshot.
     const unsubscribe = q.onSnapshot((querySnapshot) => {
         setReviews(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Review[]);
     }, (err) => {
@@ -142,53 +162,100 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
     return () => unsubscribe();
   }, []);
 
-  const revenueChartData = useMemo(() => {
-    const dataMap = new Map<string, number>();
-
-    const getDayKey = (date: Date) => date.toISOString().split('T')[0];
-    const getWeekKey = (date: Date) => {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-        return new Date(d.setDate(diff)).toISOString().split('T')[0];
-    };
-    const getMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
+  const chartData = useMemo(() => {
+    const dataMap = new Map<string, { revenue: number, reservations: number, users: number, notices: number }>();
     reservations.forEach(res => {
-        const date = res.startTime.toDate();
-        let key = '';
-        if (revenueFilter === 'day') key = getDayKey(date);
-        else if (revenueFilter === 'week') key = getWeekKey(date);
-        else if (revenueFilter === 'month') key = getMonthKey(date);
-        
-        dataMap.set(key, (dataMap.get(key) || 0) + res.amountPaid);
+        const date = res.startTime.toDate().toISOString().split('T')[0];
+        const existing = dataMap.get(date) || { revenue: 0, reservations: 0, users: 0, notices: 0 };
+        dataMap.set(date, { ...existing, revenue: existing.revenue + res.amountPaid, reservations: existing.reservations + 1 });
     });
-    
-    return Array.from(dataMap.entries())
-        .map(([name, revenue]) => ({ name, revenue }))
-        .sort((a,b) => new Date(a.name).getTime() - new Date(b.name).getTime());
-  }, [reservations, revenueFilter]);
+    users.forEach(user => {
+        const date = (user as any).createdAt?.toDate().toISOString().split('T')[0];
+        if (date) {
+            const existing = dataMap.get(date) || { revenue: 0, reservations: 0, users: 0, notices: 0 };
+            dataMap.set(date, { ...existing, users: existing.users + 1 });
+        }
+    });
+    notices.forEach(notice => {
+        const date = notice.timestamp.toDate().toISOString().split('T')[0];
+        const existing = dataMap.get(date) || { revenue: 0, reservations: 0, users: 0, notices: 0 };
+        dataMap.set(date, { ...existing, notices: existing.notices + 1 });
+    });
+    return Array.from(dataMap.entries()).map(([name, value]) => ({ name, ...value }));
+  }, [reservations, users, notices]);
+
+  const newUserPercentage = useMemo(() => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const newUsers = users.filter(user => (user as any).createdAt?.toDate() > oneWeekAgo);
+    return users.length > 0 ? (newUsers.length / users.length) * 100 : 0;
+  }, [users]);
+
+  const newReviewsPercentage = useMemo(() => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const newReviews = reviews.filter(review => review.timestamp.toDate() > oneWeekAgo);
+    return reviews.length > 0 ? (newReviews.length / reviews.length) * 100 : 0;
+  }, [reviews]);
 
   const handleSelectUser = (user: User) => {
     setSelectedUser(user);
-    setIsUsersModalOpen(false); // Close list modal when detail is opened
+    setIsUsersModalOpen(false);
   };
   
-  const handleSearchResultSelect = (result: any) => {
-    if (result.type === 'user') {
-      setSelectedUser(result.data);
-      setSelectedLocation(null);
-    } else if (result.type === 'lot' || result.type === 'slot') {
-      setSelectedLocation(result.data);
-      setSelectedUser(null);
+  const handleNavigate = (view: string) => {
+    setIsMapVisible(view === 'dashboard');
+    switch (view) {
+      case 'users':
+        setIsUsersModalOpen(true);
+        break;
+      case 'addUser':
+        setIsAddUserModalOpen(true);
+        break;
+      case 'parking':
+        setIsParkingModalOpen(true);
+        break;
+      case 'notices':
+        setIsNoticesModalOpen(true);
+        break;
+      case 'reviews':
+        setIsReviewsModalOpen(true);
+        break;
+      case 'reports':
+        setIsReportModalOpen(true);
+        break;
+      default:
+        break;
     }
   };
 
+  const totalRevenue = reservations.reduce((sum, res) => sum + res.amountPaid, 0);
 
-  const handleCloseUserDetail = () => {
-    setSelectedUser(null);
+  const filteredReservations = useMemo(() => {
+    if (!searchQuery) return reservations;
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return reservations.filter(res => {
+      const user = users.find(u => u.uid === res.userId);
+      return res.parkingLotName.toLowerCase().includes(lowerCaseQuery) ||
+             res.slotId.toLowerCase().includes(lowerCaseQuery) ||
+             (user && user.username && user.username.toLowerCase().includes(lowerCaseQuery)) ||
+             (user && user.carPlates && user.carPlates.some(plate => plate.toLowerCase().includes(lowerCaseQuery)));
+    });
+  }, [searchQuery, reservations, users]);
+
+  const handleSearchResultSelect = (result: { type: 'user' | 'lot' | 'slot', data: any }) => {
+    if (result.type === 'user') {
+      handleSelectUser(result.data as User);
+    } else if (result.type === 'lot') {
+      setSelectedLocation({ lot: result.data as ParkingLot });
+    } else if (result.type === 'slot') {
+      const lot = parkingLots.find(p => p.id === result.data.lotId);
+      if (lot) {
+        setSelectedLocation({ lot, slotId: result.data.id });
+      }
+    }
   };
-  
+
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
@@ -206,93 +273,35 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
     );
   }
 
-  const totalRevenue = reservations.reduce((sum, res) => sum + res.amountPaid, 0);
-  const totalSlots = parkingLots.reduce((sum, lot) => sum + lot.slots.length, 0);
-  const occupiedSlots = parkingLots.reduce((sum, lot) => sum + lot.slots.filter(s => s.isOccupied).length, 0);
-  const occupancyRate = totalSlots > 0 ? (occupiedSlots / totalSlots) * 100 : 0;
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-white font-sans">
-      {toastMessage && (
-        <div className="fixed top-5 right-5 bg-emerald-500 text-white py-2 px-4 rounded-lg shadow-lg z-[101] animate-fade-in">
-            {toastMessage}
-        </div>
-      )}
-      <header className="p-4 flex justify-between items-center bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200 dark:border-slate-800">
-        <h1 className="text-2xl font-bold text-indigo-500 dark:text-indigo-400">Admin Dashboard</h1>
-        <div className="flex items-center gap-4">
-            <button 
-                onClick={onThemeToggle} 
-                className="p-2 rounded-full bg-gray-200 dark:bg-slate-800 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-700 transition-colors"
-                aria-label="Toggle theme"
-            >
-                {theme === 'dark' ? <SunIcon className="w-5 h-5"/> : <MoonIcon className="w-5 h-5"/>}
-            </button>
-            <button onClick={onLogout} className="flex items-center gap-2 bg-pink-600/80 hover:bg-pink-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-                <LogOutIcon />
-                Logout
-            </button>
-        </div>
-      </header>
-
-      <main className="p-4 md:p-6 space-y-6">
-        {/* Search Bar */}
-        <div className="mb-6">
-            <AdminSearch 
-              users={users}
-              parkingLots={parkingLots}
-              onResultSelect={handleSearchResultSelect}
-            />
-        </div>
-        
-        {/* Revenue Chart */}
-        <RevenueChart
-          data={revenueChartData}
-          chartType={chartType}
-          setChartType={setChartType}
-          filter={revenueFilter}
-          setFilter={setRevenueFilter}
-          totalRevenue={totalRevenue}
-        />
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <StatCard icon={<BarChartIcon className="w-6 h-6 text-gray-800 dark:text-white"/>} title="Total Reservations" value={reservations.length.toString()} />
-          <StatCard icon={<PersonIcon className="w-6 h-6 text-gray-800 dark:text-white"/>} title="Registered Users" value={users.length.toString()} />
-          <StatCard icon={<TrendingUpIcon className="w-6 h-6 text-gray-800 dark:text-white"/>} title="Current Occupancy" value={`${occupancyRate.toFixed(1)}%`} detail={`${occupiedSlots} / ${totalSlots} slots`} />
-        </div>
-
-        {/* Actions Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-          <button onClick={() => setIsParkingModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
-            <LayersIcon className="w-10 h-10 text-indigo-500 dark:text-indigo-400 mb-2"/>
-            <span className="font-semibold">Manage Parking Lots</span>
-          </button>
-          <button onClick={() => setIsUsersModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
-            <PersonIcon className="w-10 h-10 text-cyan-500 dark:text-cyan-400 mb-2"/>
-            <span className="font-semibold">View All Users</span>
-          </button>
-          <button onClick={() => setIsAddUserModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
-            <PersonIcon className="w-10 h-10 text-green-500 dark:text-green-400 mb-2"/>
-            <span className="font-semibold">Add New User</span>
-          </button>
-          <button onClick={() => setIsReportModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
-            <DocumentTextIcon className="w-10 h-10 text-emerald-500 dark:text-emerald-400 mb-2"/>
-            <span className="font-semibold">Generate PDF Report</span>
-          </button>
-          <button onClick={() => setIsNoticesModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
-            <NewspaperIcon className="w-10 h-10 text-yellow-500 dark:text-yellow-400 mb-2"/>
-            <span className="font-semibold">Manage Notices</span>
-          </button>
-          <button onClick={() => setIsReviewsModalOpen(true)} className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-slate-900 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors border border-gray-200 dark:border-slate-800 hover:border-indigo-500">
-            <ChatbubblesIcon className="w-10 h-10 text-pink-500 dark:text-pink-400 mb-2"/>
-            <span className="font-semibold">Manage Reviews</span>
-          </button>
-        </div>
-        
-        {/* Live Occupancy Table */}
-        <LiveOccupancyTable reservations={reservations} users={users} />
-      </main>
+    <div className={`flex h-screen bg-gray-100 text-gray-900 font-sans ${theme}`}>
+      <Sidebar onLogout={onLogout} theme={theme} onThemeToggle={onThemeToggle} onNavigate={handleNavigate} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header onSearch={setSearchQuery} />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 p-4">
+          <AdminSearch users={users} parkingLots={parkingLots} onResultSelect={handleSearchResultSelect} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-4">
+            <StatCard title="Total Revenue" value={`$${totalRevenue.toFixed(2)}`} data={chartData} dataKey="revenue" color="#8884d8" />
+            <StatCard title="Reservations" value={reservations.length.toString()} data={chartData} dataKey="reservations" color="#82ca9d" />
+            <StatCard title="Users" value={users.length.toString()} data={chartData} dataKey="users" color="#ffc658" />
+            <StatCard title="Notices" value={notices.length.toString()} data={chartData} dataKey="notices" color="#ff8042" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {isMapVisible && (
+              <div className="lg:col-span-2 animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
+                <OccupancyMap parkingLots={parkingLots} />
+              </div>
+            )}
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isMapVisible ? 'lg:grid-cols-1' : 'lg:col-span-3 lg:grid-cols-4'}`}>
+              <DonutChartCard title="New Users" value={users.length.toString()} percentage={newUserPercentage} color="text-green-500" />
+              <DonutChartCard title="New Reviews" value={reviews.length.toString()} percentage={newReviewsPercentage} color="text-blue-500" />
+            </div>
+          </div>
+          <div className="mt-4 animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
+            <LiveOccupancyTable reservations={filteredReservations} users={users} />
+          </div>
+        </main>
+      </div>
       
       <ManageParkingModal 
         isOpen={isParkingModalOpen}
@@ -320,7 +329,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
       {selectedUser && (
         <UserDetailModal
             isOpen={!!selectedUser}
-            onClose={handleCloseUserDetail}
+            onClose={() => setSelectedUser(null)}
             user={selectedUser}
             onDeleteSuccess={(message) => {
               setToastMessage(message);
