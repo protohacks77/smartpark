@@ -20,11 +20,11 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import OccupancyMap from './OccupancyMap';
 import AdminSearch from './AdminSearch';
-import { LineChart, Line, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, AreaChart, Area, XAxis, YAxis } from 'recharts';
 import './animations.css';
 
 const StatCard = ({ title, value, data, dataKey, color }: { title: string, value: string, data: any[], dataKey: string, color: string }) => (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-white animate-slide-in">
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-white animate-slide-in border border-gray-200 dark:border-gray-700">
         <p className="text-gray-400">{title}</p>
         <p className="text-3xl font-bold">{value}</p>
         <div className="h-16 mt-2">
@@ -36,6 +36,8 @@ const StatCard = ({ title, value, data, dataKey, color }: { title: string, value
                             <stop offset="95%" stopColor={color} stopOpacity={0}/>
                         </linearGradient>
                     </defs>
+                    <XAxis dataKey="name" />
+                    <YAxis />
                     <Area type="monotone" dataKey={dataKey} stroke={color} fillOpacity={1} fill={`url(#${color})`} isAnimationActive={true} />
                 </AreaChart>
             </ResponsiveContainer>
@@ -44,7 +46,7 @@ const StatCard = ({ title, value, data, dataKey, color }: { title: string, value
 );
 
 const DonutChartCard = ({ title, value, percentage, color }: { title: string, value: string, percentage: number, color: string }) => (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex flex-col items-center text-white animate-slide-in">
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex flex-col items-center text-white animate-slide-in border border-gray-200 dark:border-gray-700">
         <p className="text-gray-400">{title}</p>
         <p className="text-3xl font-bold">{value}</p>
         <div className="w-24 h-24 relative mt-2">
@@ -284,7 +286,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {isMapVisible && (
-              <div className="lg:col-span-2 animate-slide-in">
+              <div className="lg:col-span-2 animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
                 <OccupancyMap parkingLots={parkingLots} />
               </div>
             )}
@@ -293,7 +295,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
               <DonutChartCard title="New Reviews" value={reviews.length.toString()} percentage={newReviewsPercentage} color="text-blue-500" />
             </div>
           </div>
-          <div className="mt-4 animate-slide-in">
+          <div className="mt-4 animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
             <LiveOccupancyTable reservations={filteredReservations} users={users} />
           </div>
         </main>

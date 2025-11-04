@@ -44,7 +44,7 @@ const OccupancyMap = ({ parkingLots }: OccupancyMapProps) => {
 
   return (
     <div className="bg-gray-200 dark:bg-slate-800 p-4 rounded-lg">
-      <h2 className="text-xl font-bold mb-4">Live Occupancy Map</h2>
+      <h2 className="text-xl font-bold mb-4 text-white">Live Occupancy Map</h2>
       <div ref={mapRef} className="w-full h-96 rounded-lg" />
     </div>
   );
