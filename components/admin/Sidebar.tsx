@@ -28,7 +28,7 @@ const Sidebar = ({ onLogout, theme, onThemeToggle, onNavigate }: SidebarProps) =
 
   return (
     <>
-      <div className={`bg-gray-800 text-white w-64 p-4 flex-col h-screen fixed lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`bg-gray-800 text-white w-64 p-4 flex-col h-screen fixed lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} z-50`}>
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-bold">SmartPark</h1>
           <button className="lg:hidden" onClick={() => setIsOpen(false)}>

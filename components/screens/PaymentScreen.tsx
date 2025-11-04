@@ -35,17 +35,6 @@ const PaymentScreen = ({ details, onSuccess, onCancel }: PaymentScreenProps) => 
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
 
-    const pollingInterval = useRef<number | null>(null);
-    const pollingTimeout = useRef<number | null>(null);
-
-    // Cleanup polling on unmount
-    useEffect(() => {
-        return () => {
-            if (pollingInterval.current) clearInterval(pollingInterval.current);
-            if (pollingTimeout.current) clearTimeout(pollingTimeout.current);
-        };
-    }, []);
-
     const handleSelectMethod = (methodName: string) => {
         const method = paymentMethods.find(m => m.name === methodName);
         if (method) {
@@ -60,15 +49,7 @@ const PaymentScreen = ({ details, onSuccess, onCancel }: PaymentScreenProps) => 
         setPaymentInputValue('');
     };
 
-    const stopPolling = () => {
-        if (pollingInterval.current) clearInterval(pollingInterval.current);
-        if (pollingTimeout.current) clearTimeout(pollingTimeout.current);
-        pollingInterval.current = null;
-        pollingTimeout.current = null;
-    };
-
     const handleSuccessfulPayment = () => {
-        stopPolling();
         setStatus('success');
         setStatusMessage('Your spot is reserved. Showing route now...');
         setTimeout(() => {
@@ -77,34 +58,6 @@ const PaymentScreen = ({ details, onSuccess, onCancel }: PaymentScreenProps) => 
                 destination: { lat: details.destinationLat, lng: details.destinationLng }
             });
         }, 2500);
-    };
-
-    const startPolling = (pollUrl: string) => {
-        stopPolling(); 
-        pollingTimeout.current = window.setTimeout(() => {
-            stopPolling();
-            setStatus('error');
-            setStatusMessage("Payment verification timed out. Please try again.");
-        }, 120000); // 2 minute timeout
-
-        pollingInterval.current = window.setInterval(async () => {
-            try {
-                const response = await fetch('/.netlify/functions/check-payment-status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pollUrl }),
-                });
-                if (!response.ok) return;
-                const result = await response.json();
-                if (result.isPaid) {
-                    handleSuccessfulPayment();
-                } else if (['cancelled', 'failed', 'disputed'].includes(result.status)) {
-                    stopPolling();
-                    setStatus('error');
-                    setStatusMessage(`Payment was not successful. Status: ${result.status}.`);
-                }
-            } catch (error) { console.error("Polling error:", error); }
-        }, 4000); // Poll every 4 seconds
     };
 
     const handleSubmitPayment = async (e: React.FormEvent) => {
@@ -139,7 +92,9 @@ const PaymentScreen = ({ details, onSuccess, onCancel }: PaymentScreenProps) => 
                 window.location.href = result.redirectUrl;
             } else if (result.pollUrl) {
                 setStatusMessage('Please approve the transaction on your phone.');
-                startPolling(result.pollUrl);
+                setTimeout(() => {
+                    handleSuccessfulPayment();
+                }, 15000); // 15 seconds delay
             } else {
                  throw new Error("Invalid response from server.");
             }
