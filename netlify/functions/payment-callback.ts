@@ -114,18 +114,21 @@ export const paymentCallback = functions.https.onRequest(async (req, res) => {
             
             const userDoc = await db.collection('users').doc(intentData.userId).get();
             const carPlate = userDoc.data()?.carPlate || 'N/A';
+            const reservationId = (await db.collection('reservations').where('paymentIntentId', '==', intentData.id).get()).docs[0].id;
 
-            await createNotification(
-                intentData.userId,
-                'RESERVED',
-                `You have successfully reserved spot ${intentData.slotId.toUpperCase()} at ${intentData.parkingLotName}. Please mark when you have parked.`,
-                {
-                    reservationId: (await db.collection('reservations').where('paymentIntentId', '==', intentData.id).get()).docs[0].id,
+            await db.collection('notifications').add({
+                userId: intentData.userId,
+                type: 'RESERVED',
+                message: `You have successfully reserved spot ${intentData.slotId.toUpperCase()} at ${intentData.parkingLotName}.`,
+                isRead: false,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                data: {
+                    reservationId,
                     carPlate,
                     amountPaid: intentData.amount,
                     hoursLeft: intentData.durationHours,
                 }
-            );
+            });
 
         } else {
             // Handle other statuses (e.g., 'cancelled', 'failed')

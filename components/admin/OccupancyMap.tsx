@@ -5,9 +5,10 @@ declare const L: any;
 
 interface OccupancyMapProps {
   parkingLots: ParkingLot[];
+  onLotClick: (lot: ParkingLot) => void;
 }
 
-const OccupancyMap = ({ parkingLots }: OccupancyMapProps) => {
+const OccupancyMap = ({ parkingLots, onLotClick }: OccupancyMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
 
@@ -28,19 +29,31 @@ const OccupancyMap = ({ parkingLots }: OccupancyMapProps) => {
 
   useEffect(() => {
     if (mapInstance.current) {
+      // Clear existing markers
+      mapInstance.current.eachLayer((layer: any) => {
+        if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
+          mapInstance.current.removeLayer(layer);
+        }
+      });
+
       parkingLots.forEach(lot => {
-        lot.slots.forEach(slot => {
-          if (slot.coords) {
-            L.circleMarker([slot.coords.lat, slot.coords.lng], {
-              radius: 5,
-              color: slot.isOccupied ? '#ef4444' : '#22c55e',
-              fillOpacity: 1,
-            }).addTo(mapInstance.current);
-          }
-        });
+        const occupiedCount = lot.slots.filter(s => s.isOccupied).length;
+        const totalCount = lot.slots.length;
+        const percentage = totalCount > 0 ? (occupiedCount / totalCount) * 100 : 0;
+        const color = percentage > 80 ? '#ef4444' : percentage > 50 ? '#f97316' : '#22c55e';
+
+        const lotMarker = L.circleMarker([lot.location.latitude, lot.location.longitude], {
+          radius: 10,
+          color: color,
+          fillOpacity: 0.8,
+        }).addTo(mapInstance.current);
+
+        lotMarker.on('click', () => onLotClick(lot));
+
+        lotMarker.bindTooltip(`${lot.name}<br>${occupiedCount}/${totalCount} occupied`);
       });
     }
-  }, [parkingLots]);
+  }, [parkingLots, onLotClick]);
 
   return (
     <div className="bg-gray-200 dark:bg-slate-800 p-4 rounded-lg">
