@@ -62,17 +62,18 @@ const LotForm = ({ lot, onSave, onCancel, onDelete, isSaving }: { lot: Partial<P
     const lng = parseFloat(String(formData.lng));
     const hourlyRate = parseFloat(String(formData.hourlyRate));
 
+    // Validate latitude and longitude
     if (isNaN(lat) || lat < -90 || lat > 90) {
-        alert('Latitude must be a valid number between -90 and 90.');
-        return;
+      alert('Latitude must be a number between -90 and 90');
+      return;
     }
     if (isNaN(lng) || lng < -180 || lng > 180) {
-        alert('Longitude must be a valid number between -180 and 180.');
-        return;
+      alert('Longitude must be a number between -180 and 180');
+      return;
     }
-     if (isNaN(hourlyRate) || hourlyRate < 0) {
-        alert('Hourly rate must be a valid positive number.');
-        return;
+    if (isNaN(hourlyRate) || hourlyRate <= 0) {
+      alert('Hourly rate must be a positive number');
+      return;
     }
 
     const lotToSave: ParkingLot = {
@@ -118,6 +119,21 @@ const LotForm = ({ lot, onSave, onCancel, onDelete, isSaving }: { lot: Partial<P
     }
   };
 
+  // Helper function to create a safe GeoPoint
+  const createSafeGeoPoint = () => {
+    const lat = Number(formData.lat);
+    const lng = Number(formData.lng);
+    
+    // Check if values are valid numbers and within valid ranges
+    const isValidLat = !isNaN(lat) && lat >= -90 && lat <= 90;
+    const isValidLng = !isNaN(lng) && lng >= -180 && lng <= 180;
+    
+    if (isValidLat && isValidLng) {
+      return new firebase.firestore.GeoPoint(lat, lng);
+    }
+    // Return default location if invalid
+    return new firebase.firestore.GeoPoint(0, 0);
+  };
 
   const inputStyle = "w-full bg-gray-100 dark:bg-slate-900/50 text-gray-900 dark:text-white p-3 rounded-lg border border-gray-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
@@ -150,10 +166,12 @@ const LotForm = ({ lot, onSave, onCancel, onDelete, isSaving }: { lot: Partial<P
                  <div>
                     <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Latitude</label>
                     <input type="number" step="any" name="lat" value={formData.lat} onChange={handleChange} className={inputStyle} required />
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Range: -90 to 90</p>
                 </div>
                  <div>
                     <label className="block mb-2 text-sm font-medium text-gray-500 dark:text-slate-400">Longitude</label>
                     <input type="number" step="any" name="lng" value={formData.lng} onChange={handleChange} className={inputStyle} required />
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Range: -180 to 180</p>
                 </div>
             </div>
             <div>
@@ -199,8 +217,8 @@ const LotForm = ({ lot, onSave, onCancel, onDelete, isSaving }: { lot: Partial<P
             onClose={() => setIsSlotModalOpen(false)}
             onSave={handleSaveSlot}
             slot={editingSlot}
-            // FIX: Use firebase.firestore.GeoPoint for v8 compat SDK.
-            lotLocation={new firebase.firestore.GeoPoint(Number(formData.lat), Number(formData.lng))}
+            // FIX: Use safe GeoPoint creation that validates coordinates during typing
+            lotLocation={createSafeGeoPoint()}
             existingSlotIds={formData.slots.map(s => s.id).filter(id => id !== editingSlot?.id)}
         />
     </div>
