@@ -15,7 +15,9 @@ import LocationInfoModal from './LocationInfoModal';
 import ReportGenerationModal from './ReportGenerationModal';
 import ManageNoticesModal from './ManageNoticesModal';
 import ManageReviewsModal from './ManageReviewsModal';
+import ParkingBayDetailsModal from './ParkingBayDetailsModal';
 import LiveOccupancyTable from './LiveOccupancyTable';
+import TransactionHistoryTable from './TransactionHistoryTable';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import OccupancyMap from './OccupancyMap';
@@ -95,7 +97,9 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isNoticesModalOpen, setIsNoticesModalOpen] = useState(false);
   const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
+  const [isParkingBayDetailsModalOpen, setIsParkingBayDetailsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedLot, setSelectedLot] = useState<ParkingLot | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{lot: ParkingLot, slotId?: string} | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,32 +115,37 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-  
-    const fetchStaticData = async () => {
-      try {
-        const usersPromise = db.collection('users').get();
-        const reservationsPromise = db.collection('reservations').get();
-        const [usersSnapshot, reservationsSnapshot] = await Promise.all([usersPromise, reservationsPromise]);
-        setUsers(usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
-        setReservations(reservationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[]);
-      } catch (err) {
-        console.error("Failed to fetch static dashboard data:", err);
-        setError("Failed to load user or reservation data.");
-      }
-    };
-  
+
+    const unsubscribeUsers = db.collection('users').onSnapshot((snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
+    }, (err) => {
+      console.error("Failed to listen for users:", err);
+      setError("Failed to load user data.");
+    });
+
+    const unsubscribeReservations = db.collection('reservations').onSnapshot((snapshot) => {
+      setReservations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[]);
+    }, (err) => {
+      console.error("Failed to listen for reservations:", err);
+      setError("Failed to load reservation data.");
+    });
+
     const unsubscribeLots = db.collection('parkingLots').onSnapshot((snapshot) => {
       setParkingLots(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ParkingLot[]);
       if (isLoading) {
-        fetchStaticData().finally(() => setIsLoading(false));
+        setIsLoading(false);
       }
     }, (err) => {
       console.error("Failed to listen for parking lots:", err);
       setError("Failed to load parking lot data.");
       setIsLoading(false);
     });
-  
-    return () => unsubscribeLots();
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeReservations();
+      unsubscribeLots();
+    };
   }, []);
 
   useEffect(() => {
@@ -201,6 +210,11 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
   const handleSelectUser = (user: User) => {
     setSelectedUser(user);
     setIsUsersModalOpen(false);
+  };
+
+  const handleLotClick = (lot: ParkingLot) => {
+    setSelectedLot(lot);
+    setIsParkingBayDetailsModalOpen(true);
   };
   
   const handleNavigate = (view: string) => {
@@ -289,7 +303,7 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {isMapVisible && (
               <div className="lg:col-span-2 animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
-                <OccupancyMap parkingLots={parkingLots} />
+                <OccupancyMap parkingLots={parkingLots} onLotClick={handleLotClick} />
               </div>
             )}
             <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isMapVisible ? 'lg:grid-cols-1' : 'lg:col-span-3 lg:grid-cols-4'}`}>
@@ -297,8 +311,13 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
               <DonutChartCard title="New Reviews" value={reviews.length.toString()} percentage={newReviewsPercentage} color="text-blue-500" />
             </div>
           </div>
-          <div className="mt-4 animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
-            <LiveOccupancyTable reservations={filteredReservations} users={users} />
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
+              <LiveOccupancyTable reservations={filteredReservations} users={users} />
+            </div>
+            <div className="animate-slide-in border border-gray-200 dark:border-gray-700 rounded-lg">
+              <TransactionHistoryTable reservations={filteredReservations} users={users} />
+            </div>
           </div>
         </main>
       </div>
@@ -368,6 +387,14 @@ const AdminDashboard = ({ onLogout, theme, onThemeToggle }: { onLogout: () => vo
         isOpen={isReviewsModalOpen}
         onClose={() => setIsReviewsModalOpen(false)}
         reviews={reviews}
+      />
+
+      <ParkingBayDetailsModal
+        isOpen={isParkingBayDetailsModalOpen}
+        onClose={() => setIsParkingBayDetailsModalOpen(false)}
+        lot={selectedLot}
+        reservations={reservations}
+        users={users}
       />
     </div>
   );

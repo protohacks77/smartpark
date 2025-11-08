@@ -21,6 +21,9 @@ export interface Reservation {
   durationHours: number;
   amountPaid: number;
   status: 'confirmed' | 'active' | 'completed' | 'expired';
+  overtime?: number;
+  total?: number;
+  timeToPay?: string;
 }
 
 export interface User {
@@ -64,6 +67,7 @@ export interface Notification {
   message: string;
   isRead: boolean;
   timestamp: Timestamp; // Changed to Firestore Timestamp
+  actions?: ('MARK_AS_LEFT')[];
   data?: {
     reservationId?: string;
     carPlate?: string;

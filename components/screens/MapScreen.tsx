@@ -53,6 +53,7 @@ interface MapScreenProps {
   onOpenPayBillModal: () => void;
   onOpenUserDetailsModal: () => void;
   onInitiatePayment: (details: any) => void;
+  onUpdateUserPlates: (plates: string[]) => Promise<void>;
 }
 
 interface MapButtonProps {
@@ -88,6 +89,7 @@ const MapScreen = ({
     onOpenPayBillModal,
     onOpenUserDetailsModal,
     onInitiatePayment,
+    onUpdateUserPlates,
 }: MapScreenProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
@@ -394,6 +396,7 @@ const MapScreen = ({
             lot={selectedLot}
             user={user}
             onInitiatePayment={onInitiatePayment}
+            onUpdateUserPlates={onUpdateUserPlates}
           />
         );
       

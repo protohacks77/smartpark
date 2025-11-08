@@ -35,22 +35,18 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, reser
       );
     }
 
-    if (!reservation || notification.type !== 'RESERVED') {
-      return null;
-    }
-
-    if (reservation.status === 'confirmed') {
+    if (notification.actions?.includes('MARK_AS_LEFT') && reservation) {
       return (
-        <button onClick={() => onMarkAsParked(reservation.id)} className="mt-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm w-full">
-          Mark as Parked (Starts Timer)
+        <button onClick={() => onLeftParking(reservation.id)} className="mt-3 bg-pink-600 hover:bg-pink-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm w-full">
+          Mark as Left
         </button>
       );
     }
 
-    if (reservation.status === 'active') {
+    if (reservation?.status === 'confirmed') {
       return (
-        <button onClick={() => onLeftParking(reservation.id)} className="mt-3 bg-pink-600 hover:bg-pink-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm w-full">
-          I've Left Parking
+        <button onClick={() => onMarkAsParked(reservation.id)} className="mt-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm w-full">
+          Mark as Parked (Starts Timer)
         </button>
       );
     }
@@ -149,7 +145,19 @@ const NotificationsScreen = ({ user, reservations, onOpenPayBillModal }: Notific
         startTime: firebase.firestore.Timestamp.fromDate(now),
         endTime: firebase.firestore.Timestamp.fromDate(newEndTime)
       });
-      // UI will update via the real-time listener in App.tsx
+
+      // Create a new notification to leave the parking
+      await db.collection('notifications').add({
+        userId: reservation.userId,
+        type: 'GENERIC',
+        message: `Your parking at ${reservation.parkingLotName} has started. Please mark when you have left.`,
+        isRead: false,
+        timestamp: firebase.firestore.Timestamp.now(),
+        actions: ['MARK_AS_LEFT'],
+        data: {
+          reservationId: reservation.id,
+        }
+      });
     } catch (error) {
       console.error("Error marking as parked:", error);
       alert("Could not update parking status.");
@@ -161,11 +169,21 @@ const NotificationsScreen = ({ user, reservations, onOpenPayBillModal }: Notific
     if (!reservation) return;
 
     try {
-      // FIX: Use v8 compat syntax for doc.
       const lotDocRef = db.collection('parkingLots').doc(reservation.parkingLotId);
       const resDocRef = db.collection('reservations').doc(reservationId);
+      const now = new Date();
+      const endTime = reservation.endTime.toDate();
+      const startTime = reservation.startTime.toDate();
 
-      // FIX: Use v8 compat syntax for runTransaction.
+      let overtime = 0;
+      if (now > endTime) {
+        overtime = Math.ceil((now.getTime() - endTime.getTime()) / (1000 * 60 * 60));
+      }
+
+      const parkingLot = await db.collection('parkingLots').doc(reservation.parkingLotId).get().then(doc => doc.data() as ParkingLot);
+      const total = reservation.amountPaid + (overtime * (parkingLot?.hourlyRate || 0));
+      const timeToPay = `${Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60))} minutes`;
+
       await db.runTransaction(async (transaction) => {
         const lotDoc = await transaction.get(lotDocRef);
         if (!lotDoc.exists) throw new Error("Parking lot not found!");
@@ -177,8 +195,19 @@ const NotificationsScreen = ({ user, reservations, onOpenPayBillModal }: Notific
           transaction.update(lotDocRef, { slots: lotData.slots });
         }
         
-        transaction.update(resDocRef, { status: 'completed' });
+        transaction.update(resDocRef, {
+          status: 'completed',
+          overtime,
+          total,
+          timeToPay,
+        });
       });
+
+      // Delete the notification
+      const notification = notifications.find(n => n.data?.reservationId === reservationId && n.actions?.includes('MARK_AS_LEFT'));
+      if (notification) {
+        await handleDelete(notification.id);
+      }
     } catch (error) {
       console.error("Error marking as left:", error);
       alert("Could not update parking status.");

@@ -4,13 +4,7 @@ import firebase from 'firebase/compat/app';
 import { auth, db } from './services/firebase';
 
 import type { ActiveTab, Theme, User, ParkingLot, Reservation, UserWithReservations, Notification, Notice, Bill } from './types';
-import Header from './components/Header';
-import Dock from './components/Dock';
-import HomeScreen from './components/screens/HomeScreen';
-import MapScreen from './components/screens/MapScreen';
-import NotificationsScreen from './components/screens/NotificationsScreen';
-import SettingsScreen from './components/screens/SettingsScreen';
-import NoticeBoardScreen from './components/screens/NoticeBoardScreen';
+import UserDashboard from './components/UserDashboard';
 import LoginModal from './components/LoginModal';
 import AdminLoginModal from './components/admin/AdminLoginModal';
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -137,7 +131,7 @@ const App = () => {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
             username: userData.username || firebaseUser.displayName || 'New User',
-            carPlate: userData.carPlate || '',
+            carPlates: userData.carPlates || [],
             ecocashNumber: userData.ecocashNumber || '',
             lastViewedNotices: userData.lastViewedNotices,
             favoriteParkingLots: userData.favoriteParkingLots || [],
@@ -148,7 +142,7 @@ const App = () => {
             uid: firebaseUser.uid,
             email: firebaseUser.email!,
             username: firebaseUser.displayName || 'New User',
-            carPlate: '',
+            carPlates: [],
             ecocashNumber: '',
             favoriteParkingLots: [],
           };
@@ -438,7 +432,7 @@ const App = () => {
     setIsAdminLoginModalOpen(false);
   };
   
-  const handleSaveUserDetails = async (details: { carPlate: string; ecocashNumber: string }) => {
+  const handleSaveUserDetails = async (details: { carPlates: string[]; ecocashNumber: string }) => {
     // FIX: Use a type-safe check to ensure user is a User object.
     if (user && typeof user === 'object') {
       // FIX: Use v8 compat syntax for doc and updateDoc.
@@ -450,6 +444,17 @@ const App = () => {
       });
     }
     setIsUserDetailsModalOpen(false);
+  };
+
+  const handleUpdateUserPlates = async (plates: string[]) => {
+    if (user && typeof user === 'object') {
+      const userDocRef = db.collection('users').doc(user.uid);
+      await userDocRef.update({ carPlates: plates });
+      setUser(prevUser => {
+        if (!prevUser || prevUser === 'loading') return null;
+        return { ...prevUser, carPlates: plates };
+      });
+    }
   };
   
   const handleToggleFavorite = async (parkingLotId: string) => {
@@ -521,76 +526,51 @@ const App = () => {
     );
   }
 
-  const fullUserWithReservations: UserWithReservations | null = (user && typeof user === 'object') 
-    ? { ...user, reservations: userReservations } 
-    : null;
-
-  const renderScreen = () => {
-    switch (activeTab) {
-      case 'home':
-        return <HomeScreen 
-                  user={fullUserWithReservations} 
-                  parkingLots={parkingLots} 
-                  onFindParking={() => setActiveTab('map')} 
-                  onEditDetails={() => setIsUserDetailsModalOpen(true)}
-                  onLeaveReview={() => setIsLeaveReviewModalOpen(true)}
-                  onToggleFavorite={handleToggleFavorite}
-                  onSelectLotOnMap={handleSelectLotOnMap}
-                />;
-      case 'map':
-        return <MapScreen 
-                  parkingLots={parkingLots} 
-                  userLocation={geolocation.data}
-                  isLoggedIn={!!user}
-                  onLoginSuccess={() => { /* onAuthStateChanged handles this */ }}
-                  // FIX: Use a type-safe check to ensure user is a User object before passing.
-                  user={user && typeof user === 'object' ? user : null}
-                  onToggleFavorite={handleToggleFavorite}
-                  selectedLotId={selectedLotOnMap}
-                  onClearSelectedLot={() => setSelectedLotOnMap(null)}
-                  activeRoute={activeRoute}
-                  onClearActiveRoute={() => setActiveRoute(null)}
-                  unpaidBill={unpaidBill}
-                  onOpenPayBillModal={() => setIsPayBillModalOpen(true)}
-                  onOpenUserDetailsModal={() => setIsUserDetailsModalOpen(true)}
-                  onInitiatePayment={handleInitiatePayment}
-                />;
-      case 'notifications':
-        return <NotificationsScreen 
-                  user={user} 
-                  reservations={userReservations} 
-                  onOpenPayBillModal={() => setIsPayBillModalOpen(true)}
-                />;
-      case 'notices':
-        return <NoticeBoardScreen notices={notices} isLoading={isLoadingNotices} />;
-      case 'settings':
-        return <SettingsScreen user={user} onLogout={handleLogout} onAdminLogin={() => setIsAdminLoginModalOpen(true)} onUserDetailsUpdate={updatedUser => setUser(updatedUser)} />;
-      default:
-        return <HomeScreen 
-                  user={fullUserWithReservations} 
-                  parkingLots={parkingLots} 
-                  onFindParking={() => setActiveTab('map')} 
-                  onEditDetails={() => setIsUserDetailsModalOpen(true)}
-                  onLeaveReview={() => setIsLeaveReviewModalOpen(true)}
-                  onToggleFavorite={handleToggleFavorite}
-                  onSelectLotOnMap={handleSelectLotOnMap}
-                />;
-    }
-  };
-
   if (isAdmin) {
     return <AdminDashboard onLogout={handleLogout} theme={theme} onThemeToggle={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />;
   }
 
+  if (user && typeof user === 'object') {
+    return (
+      <UserDashboard
+        user={user}
+        userReservations={userReservations}
+        parkingLots={parkingLots}
+        notices={notices}
+        isLoadingNotices={isLoadingNotices}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        theme={theme}
+        onThemeToggle={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+        onLogout={handleLogout}
+        hasUnreadNotices={hasUnreadNotices}
+        hasUnreadNotifications={hasUnreadNotifications}
+        geolocation={geolocation.data}
+        onFindParking={() => setActiveTab('map')}
+        onEditDetails={() => setIsUserDetailsModalOpen(true)}
+        onLeaveReview={() => setIsLeaveReviewModalOpen(true)}
+        onToggleFavorite={handleToggleFavorite}
+        onSelectLotOnMap={handleSelectLotOnMap}
+        onLoginSuccess={() => {}}
+        selectedLotId={selectedLotOnMap}
+        onClearSelectedLot={() => setSelectedLotOnMap(null)}
+        activeRoute={activeRoute}
+        onClearActiveRoute={() => setActiveRoute(null)}
+        unpaidBill={unpaidBill}
+        onOpenPayBillModal={() => setIsPayBillModalOpen(true)}
+        onOpenUserDetailsModal={() => setIsUserDetailsModalOpen(true)}
+        onInitiatePayment={handleInitiatePayment}
+        onUpdateUserPlates={handleUpdateUserPlates}
+        onUserDetailsUpdate={updatedUser => setUser(updatedUser)}
+      />
+    );
+  }
+
   return (
     <div className="relative h-screen w-screen overflow-hidden text-gray-900 dark:text-white">
-      <Header theme={theme} onThemeToggle={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />
-      <main className="h-full w-full" key={activeTab}>{renderScreen()}</main>
-      {!!user && <Dock activeTab={activeTab} setActiveTab={setActiveTab} hasUnreadNotices={hasUnreadNotices} hasUnreadNotifications={hasUnreadNotifications} />}
-      
-      {!user && activeTab !== 'map' && loginView === 'user' && <LoginModal 
-        isOpen={!user} 
-        onClose={() => { /* Can't close if not logged in */ }}
+      {!user && loginView === 'user' && <LoginModal
+        isOpen={!user}
+        onClose={() => {}}
         onSuccess={() => { /* onAuthStateChanged handles this */ }}
         onAdminLoginClick={() => setLoginView('admin')}
       />}
