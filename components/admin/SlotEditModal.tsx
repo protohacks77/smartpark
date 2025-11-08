@@ -18,8 +18,8 @@ interface SlotEditModalProps {
 const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlotIds }: SlotEditModalProps) => {
   const [formData, setFormData] = useState({
     id: '',
-    lat: 0,
-    lng: 0,
+    lat: '0',
+    lng: '0',
   });
   const [error, setError] = useState('');
 
@@ -29,8 +29,8 @@ const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlo
       if (slot?.id) { // Editing existing slot
         setFormData({
           id: slot.id,
-          lat: slot.coords?.lat || lotLocation.latitude,
-          lng: slot.coords?.lng || lotLocation.longitude,
+          lat: (slot.coords?.lat || lotLocation.latitude).toString(),
+          lng: (slot.coords?.lng || lotLocation.longitude).toString(),
         });
       } else { // Adding new slot
         // Suggest a new location slightly offset from the lot center
@@ -38,8 +38,8 @@ const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlo
         const offsetLng = (Math.random() - 0.5) * 0.0001;
         setFormData({
           id: '',
-          lat: lotLocation.latitude + offsetLat,
-          lng: lotLocation.longitude + offsetLng,
+          lat: (lotLocation.latitude + offsetLat).toString(),
+          lng: (lotLocation.longitude + offsetLng).toString(),
         });
       }
     }
@@ -49,9 +49,11 @@ const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlo
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
+    // For numeric inputs, store as string to allow for intermediate values (e.g., "1.").
+    // For other inputs (like slot ID), convert to uppercase.
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value.toUpperCase()
+      [name]: type === 'number' ? value : value.toUpperCase()
     }));
   };
 
@@ -64,8 +66,18 @@ const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlo
         return;
     }
     
-    if (existingSlotIds.includes(formData.id)) {
+    // When adding a new slot, check if the ID already exists.
+    // The `slot` prop is null when adding.
+    if (!slot?.id && existingSlotIds.includes(formData.id)) {
         setError('This Slot ID is already in use for this lot.');
+        return;
+    }
+
+    const lat = parseFloat(formData.lat);
+    const lng = parseFloat(formData.lng);
+
+    if (isNaN(lat) || isNaN(lng)) {
+        setError('Please enter valid numbers for latitude and longitude.');
         return;
     }
 
@@ -73,8 +85,8 @@ const SlotEditModal = ({ isOpen, onClose, onSave, slot, lotLocation, existingSlo
         id: formData.id,
         isOccupied: slot?.isOccupied || false,
         coords: {
-            lat: formData.lat,
-            lng: formData.lng
+            lat: lat,
+            lng: lng
         }
     });
   };
