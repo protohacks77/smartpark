@@ -2,14 +2,27 @@ import React, { useState, useEffect } from 'react';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
 import { db } from '../../services/firebase';
-import type { User, Reservation } from '../../types';
-import { PersonIcon, CarIcon, WalletIcon, ClockIcon, LocationIcon, SpinnerIcon, TrashIcon } from '../Icons';
+import type { User } from '../../types';
+import { PersonIcon, CarIcon, WalletIcon, LocationIcon, SpinnerIcon, TrashIcon } from '../Icons';
 
 interface UserDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User;
   onDeleteSuccess: (message: string) => void;
+}
+
+// Local interface for converted reservations with Date objects
+interface ReservationDisplay {
+  id: string;
+  userId: string;
+  parkingLotId: string;
+  parkingLotName: string;
+  slotId: string;
+  startTime: Date;
+  endTime: Date | null;
+  amountPaid: number;
+  status: 'confirmed' | 'active' | 'completed' | 'expired';
 }
 
 const DetailRow = ({ icon, label, value, name, isEditing, onChange }: { icon: React.ReactNode, label: string, value: string, name: string, isEditing: boolean, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) => {
@@ -32,7 +45,7 @@ const DetailRow = ({ icon, label, value, name, isEditing, onChange }: { icon: Re
 };
 
 const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailModalProps) => {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reservations, setReservations] = useState<ReservationDisplay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -76,22 +89,42 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
           const q = db.collection('reservations')
             .where('userId', '==', user.uid);
           const querySnapshot = await q.get();
-          const userReservations = querySnapshot.docs.map(doc => {
+          
+          const userReservations: ReservationDisplay[] = querySnapshot.docs.map(doc => {
             const data = doc.data();
+            
+            // Helper function to safely convert timestamps
+            const convertTimestamp = (timestamp: any): Date | null => {
+              if (!timestamp) return null;
+              if (timestamp instanceof Date) return timestamp;
+              if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+                return timestamp.toDate();
+              }
+              if (timestamp.seconds) {
+                return new Date(timestamp.seconds * 1000);
+              }
+              if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+                return new Date(timestamp);
+              }
+              return null;
+            };
+            
             return {
               id: doc.id,
-              ...data,
-              // Convert Firestore Timestamp to Date if needed
-              startTime: data.startTime?.toDate ? data.startTime : new Date(data.startTime),
-              endTime: data.endTime?.toDate ? data.endTime : (data.endTime ? new Date(data.endTime) : null)
+              userId: data.userId,
+              parkingLotId: data.parkingLotId,
+              parkingLotName: data.parkingLotName,
+              slotId: data.slotId,
+              status: data.status,
+              amountPaid: data.amountPaid || 0,
+              startTime: convertTimestamp(data.startTime) || new Date(),
+              endTime: convertTimestamp(data.endTime)
             };
-          }) as Reservation[];
-          // Sort by date
-          userReservations.sort((a, b) => {
-            const dateA = a.startTime instanceof Date ? a.startTime.getTime() : new Date(a.startTime).getTime();
-            const dateB = b.startTime instanceof Date ? b.startTime.getTime() : new Date(b.startTime).getTime();
-            return dateB - dateA;
           });
+          
+          // Sort by date (newest first)
+          userReservations.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+          
           setReservations(userReservations);
         } catch (error) {
           console.error("Error fetching user reservations: ", error);
@@ -239,7 +272,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
         <div className="absolute inset-px rounded-[11px] bg-white dark:bg-slate-950"></div>
         <div className="relative p-6 text-gray-900 dark:text-white">
           <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 dark:text-slate-400 hover:text-gray-800 dark:hover:text-white transition-colors z-20">
-            <ion-icon name="close-circle" class="w-8 h-8"></ion-icon>
+            <ion-icon name="close-circle" className="w-8 h-8"></ion-icon>
           </button>
 
           <h2 className="text-2xl font-bold text-center mb-6 text-indigo-500 dark:text-indigo-400">User Details</h2>
@@ -337,7 +370,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${res.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200' : res.status === 'active' ? 'bg-cyan-100 dark:bg-cyan-900 text-cyan-800 dark:text-cyan-200' : 'bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-slate-200'}`}>{res.status}</span>
                     </div>
                     <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                      <span>{res.startTime.toDate().toLocaleString()}</span>
+                      <span>{res.startTime.toLocaleString()}</span>
                       <span className="font-semibold text-gray-700 dark:text-slate-300">${res.amountPaid.toFixed(2)}</span>
                     </div>
                   </div>
