@@ -8,10 +8,10 @@ import { PersonIcon, CarIcon, WalletIcon, SpinnerIcon } from '../Icons';
 interface AddUserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (message: string) => void;
+  onUserAdded: (newUser: any) => void;
 }
 
-const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
+const AddUserModal = ({ isOpen, onClose, onUserAdded }: AddUserModalProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -108,6 +108,15 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
       await secondaryApp.delete();
 
 
+      const newUser = {
+        uid: user.uid,
+        email: formData.email.trim(),
+        username: formData.username.trim(),
+        carPlates: formData.carPlates,
+        ecocashNumber: formData.ecocashNumber.trim(),
+        createdAt: firebase.firestore.Timestamp.now(),
+      };
+
       // Reset the form
       setFormData({
         email: '',
@@ -118,7 +127,7 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
       });
       setNewCarPlate('');
 
-      onSuccess(`User ${formData.username} created successfully!`);
+      onUserAdded(newUser);
       onClose();
 
     } catch (error: any) {

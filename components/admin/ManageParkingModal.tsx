@@ -62,19 +62,6 @@ const LotForm = ({ lot, onSave, onCancel, onDelete, isSaving }: { lot: Partial<P
     const lng = parseFloat(String(formData.lng));
     const hourlyRate = parseFloat(String(formData.hourlyRate));
 
-    if (isNaN(lat) || lat < -90 || lat > 90) {
-        alert('Latitude must be a valid number between -90 and 90.');
-        return;
-    }
-    if (isNaN(lng) || lng < -180 || lng > 180) {
-        alert('Longitude must be a valid number between -180 and 180.');
-        return;
-    }
-     if (isNaN(hourlyRate) || hourlyRate < 0) {
-        alert('Hourly rate must be a valid positive number.');
-        return;
-    }
-
     const lotToSave: ParkingLot = {
         id: formData.id,
         name: formData.name,
