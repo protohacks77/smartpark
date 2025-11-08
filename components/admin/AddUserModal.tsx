@@ -54,9 +54,22 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
 
     setIsProcessing(true);
 
+    // Store current user to restore later
+    const currentUser = firebase.auth().currentUser;
+
     try {
-      // Create user with Firebase Auth
-      const userCredential = await firebase.auth().createUserWithEmailAndPassword(
+      // Create a secondary Firebase app instance for user creation
+      let secondaryApp;
+      try {
+        secondaryApp = firebase.app('Secondary');
+      } catch (error) {
+        // Initialize secondary app if it doesn't exist
+        const config = firebase.app().options;
+        secondaryApp = firebase.initializeApp(config, 'Secondary');
+      }
+
+      // Create user with secondary auth instance
+      const userCredential = await secondaryApp.auth().createUserWithEmailAndPassword(
         formData.email.trim(),
         formData.password.trim()
       );
@@ -67,7 +80,10 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
         throw new Error('Failed to create user');
       }
 
-      // Add user data to Firestore
+      // Sign out the newly created user from secondary app
+      await secondaryApp.auth().signOut();
+
+      // Add user data to Firestore using main app
       await db.collection('users').doc(user.uid).set({
         uid: user.uid,
         email: formData.email.trim(),
@@ -100,6 +116,8 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
       onClose();
     } catch (error: any) {
       console.error('Error creating user:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
       
       // Handle specific Firebase Auth errors
       let errorMessage = 'Failed to create user';
@@ -109,6 +127,8 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
         errorMessage = 'Invalid email address';
       } else if (error.code === 'auth/weak-password') {
         errorMessage = 'Password is too weak';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = 'Email/password accounts are not enabled. Please enable in Firebase Console.';
       } else if (error.message) {
         errorMessage = error.message;
       }
