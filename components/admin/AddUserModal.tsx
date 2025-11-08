@@ -40,7 +40,7 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.email.trim() || !formData.password.trim() || !formData.username.trim()) {
       alert('Please fill in all required fields (Email, Password, Username)');
@@ -54,21 +54,23 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
 
     setIsProcessing(true);
 
-    // Store current user to restore later
-    const currentUser = firebase.auth().currentUser;
+    // It's not necessary to store and restore the current user when using a secondary app instance correctly.
+    // The primary app's auth state will remain unaffected.
+
+    let secondaryApp: firebase.app.App;
 
     try {
-      // Create a secondary Firebase app instance for user creation
-      let secondaryApp;
+      // Create a secondary Firebase app instance for user creation.
+      // This prevents the current admin user from being logged out.
+      const secondaryAppName = 'SecondaryAuth';
       try {
-        secondaryApp = firebase.app('Secondary');
+        secondaryApp = firebase.app(secondaryAppName);
       } catch (error) {
-        // Initialize secondary app if it doesn't exist
-        const config = firebase.app().options;
-        secondaryApp = firebase.initializeApp(config, 'Secondary');
+        const firebaseConfig = firebase.app().options;
+        secondaryApp = firebase.initializeApp(firebaseConfig, secondaryAppName);
       }
 
-      // Create user with secondary auth instance
+      // Create user with the auth instance of the secondary app.
       const userCredential = await secondaryApp.auth().createUserWithEmailAndPassword(
         formData.email.trim(),
         formData.password.trim()
@@ -77,13 +79,10 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
       const user = userCredential.user;
 
       if (!user) {
-        throw new Error('Failed to create user');
+        throw new Error('User creation failed, please try again.');
       }
 
-      // Sign out the newly created user from secondary app
-      await secondaryApp.auth().signOut();
-
-      // Add user data to Firestore using main app
+      // Add user data to Firestore using the primary app's instance.
       await db.collection('users').doc(user.uid).set({
         uid: user.uid,
         email: formData.email.trim(),
@@ -93,7 +92,7 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
         createdAt: firebase.firestore.Timestamp.now(),
       });
 
-      // Send welcome notification
+      // Send a welcome notification.
       await db.collection('notifications').add({
         userId: user.uid,
         type: 'GENERIC',
@@ -102,7 +101,14 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
         timestamp: firebase.firestore.Timestamp.now(),
       });
 
-      // Reset form
+      // It's good practice to sign out the newly created user from the secondary app instance.
+      await secondaryApp.auth().signOut();
+
+      // Delete the secondary app instance to clean up resources.
+      await secondaryApp.delete();
+
+
+      // Reset the form
       setFormData({
         email: '',
         password: '',
@@ -114,28 +120,45 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }: AddUserModalProps) => {
 
       onSuccess(`User ${formData.username} created successfully!`);
       onClose();
+
     } catch (error: any) {
       console.error('Error creating user:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      
-      // Handle specific Firebase Auth errors
-      let errorMessage = 'Failed to create user';
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'This email is already registered';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Password is too weak';
-      } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = 'Email/password accounts are not enabled. Please enable in Firebase Console.';
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+
+      // Handle specific Firebase Auth errors.
+      if (error.code) {
+          switch (error.code) {
+              case 'auth/email-already-in-use':
+                  errorMessage = 'This email address is already in use by another account.';
+                  break;
+              case 'auth/invalid-email':
+                  errorMessage = 'The email address is not valid.';
+                  break;
+              case 'auth/operation-not-allowed':
+                  errorMessage = 'Email/password accounts are not enabled in the Firebase Console.';
+                  break;
+              case 'auth/weak-password':
+                  errorMessage = 'The password is too weak.';
+                  break;
+              default:
+                  errorMessage = error.message;
+          }
       } else if (error.message) {
+        // Fallback for other types of errors.
         errorMessage = error.message;
       }
       
       alert(errorMessage);
+
     } finally {
       setIsProcessing(false);
+      // Ensure the secondary app is deleted even if an error occurred after its creation.
+      try {
+        const appToDelete = firebase.app('SecondaryAuth');
+        await appToDelete.delete();
+      } catch (error) {
+        // App might not exist if initialization failed, so we can ignore this error.
+      }
     }
   };
 
