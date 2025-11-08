@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-// FIX: Switched to Firebase v8 compat imports to resolve missing export errors.
 import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { db } from '../../services/firebase';
 import type { User, Reservation } from '../../types';
 import { PersonIcon, CarIcon, WalletIcon, ClockIcon, LocationIcon, SpinnerIcon, TrashIcon } from '../Icons';
@@ -63,8 +62,8 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
             carPlates: user.carPlates || [],
             ecocashNumber: user.ecocashNumber || '',
         });
-        setIsEditing(false); // Reset edit mode when user changes
-        setIsMessaging(false); // Reset message mode
+        setIsEditing(false);
+        setIsMessaging(false);
         setMessageText('');
     }
   }, [user]);
@@ -74,13 +73,10 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
       const fetchReservations = async () => {
         setIsLoading(true);
         try {
-          // FIX: Use v8 compat syntax for query, collection, and where.
           const q = db.collection('reservations')
             .where('userId', '==', user.uid);
-          // FIX: Use v8 compat syntax for getDocs.
           const querySnapshot = await q.get();
           const userReservations = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[];
-          // Sort client-side to avoid needing a composite index in Firestore
           userReservations.sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
           setReservations(userReservations);
         } catch (error) {
@@ -100,15 +96,27 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
 
   const handleSave = async () => {
     setIsProcessing(true);
-    // FIX: Use v8 compat syntax for doc.
     const userDocRef = db.collection('users').doc(user.uid);
     try {
-        // FIX: Use v8 compat syntax for updateDoc.
-        await userDocRef.update(formData);
+        // Validate data before saving
+        if (!formData.username.trim()) {
+          alert("Username cannot be empty.");
+          setIsProcessing(false);
+          return;
+        }
+
+        // Update with explicit fields
+        await userDocRef.update({
+          username: formData.username.trim(),
+          carPlates: formData.carPlates,
+          ecocashNumber: formData.ecocashNumber.trim()
+        });
+        
+        alert("User updated successfully!");
         setIsEditing(false);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating user:", error);
-        alert("Failed to save changes.");
+        alert(`Failed to save changes: ${error.message || 'Unknown error'}`);
     } finally {
         setIsProcessing(false);
     }
@@ -118,14 +126,12 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
     if (window.confirm(`Are you sure you want to delete user ${user.username}? This action cannot be undone.`)) {
         setIsProcessing(true);
         try {
-            // FIX: Use v8 compat syntax for deleteDoc and doc.
             await db.collection('users').doc(user.uid).delete();
-            // In a real-world scenario, you might want a cloud function to delete associated data (reservations, auth user, etc.)
             onDeleteSuccess(`User ${user.username} deleted successfully.`);
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error deleting user:", error);
-            alert("Failed to delete user.");
+            alert(`Failed to delete user: ${error.message || 'Unknown error'}`);
         } finally {
             setIsProcessing(false);
         }
@@ -144,20 +150,17 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
             type: 'GENERIC' as const,
             message: messageText.trim(),
             isRead: false,
-            // FIX: Use v8 compat syntax for Timestamp.
             timestamp: firebase.firestore.Timestamp.now(),
         };
-        // FIX: Use v8 compat syntax for addDoc and collection.
         await db.collection('notifications').add(newNotification);
         
-        // Reset form
         setMessageText('');
         setIsMessaging(false);
         alert("Message sent successfully!");
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error sending message:", error);
-        alert("Failed to send message.");
+        alert(`Failed to send message: ${error.message || 'Unknown error'}`);
     } finally {
         setIsSendingMessage(false);
     }
@@ -169,18 +172,17 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
     }
     setIsBilling(true);
     try {
-        // FIX: Use v8 compat syntax for query, collection, and where.
         const billsQuery = db.collection('bills').where('userId', '==', user.uid).where('status', '==', 'unpaid');
-        // FIX: Use v8 compat syntax for getDocs.
         const billsSnapshot = await billsQuery.get();
 
         if (!billsSnapshot.empty) {
             const billDoc = billsSnapshot.docs[0];
             const newAmount = billDoc.data().amount + 2;
-            // FIX: Use v8 compat syntax for updateDoc and doc.
-            await db.collection('bills').doc(billDoc.id).update({ amount: newAmount, updatedAt: firebase.firestore.Timestamp.now() });
+            await db.collection('bills').doc(billDoc.id).update({ 
+              amount: newAmount, 
+              updatedAt: firebase.firestore.Timestamp.now() 
+            });
         } else {
-            // FIX: Use v8 compat syntax for addDoc and collection.
             await db.collection('bills').add({
                 userId: user.uid,
                 amount: 2,
@@ -190,7 +192,6 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
             });
         }
         
-        // FIX: Use v8 compat syntax for addDoc and collection.
         await db.collection('notifications').add({
           userId: user.uid,
           type: 'BILL_DUE',
@@ -201,9 +202,9 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
         });
 
         alert('User billed successfully.');
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error billing user:", error);
-        alert("Failed to bill user.");
+        alert(`Failed to bill user: ${error.message || 'Unknown error'}`);
     } finally {
         setIsBilling(false);
     }
@@ -284,7 +285,6 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
             </button>
           </div>
           
-          {/* Send Message Section */}
           <div className="mb-6">
             {!isMessaging ? (
                  <button onClick={() => setIsMessaging(true)} className="w-full bg-cyan-600/80 hover:bg-cyan-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
@@ -293,7 +293,6 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
             ) : (
                 <div className="bg-gray-100 dark:bg-slate-900/50 p-4 rounded-lg animate-fade-in-fast">
                     <h3 className="font-bold text-lg text-cyan-500 dark:text-cyan-400 mb-2">Compose Message</h3>
-                    {/* FIX: This file was truncated, causing a syntax error. The closing tags for the textarea and surrounding elements have been restored. */}
                     <textarea
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
