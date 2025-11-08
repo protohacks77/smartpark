@@ -76,8 +76,22 @@ const UserDetailModal = ({ isOpen, onClose, user, onDeleteSuccess }: UserDetailM
           const q = db.collection('reservations')
             .where('userId', '==', user.uid);
           const querySnapshot = await q.get();
-          const userReservations = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reservation[];
-          userReservations.sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
+          const userReservations = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              // Convert Firestore Timestamp to Date if needed
+              startTime: data.startTime?.toDate ? data.startTime : new Date(data.startTime),
+              endTime: data.endTime?.toDate ? data.endTime : (data.endTime ? new Date(data.endTime) : null)
+            };
+          }) as Reservation[];
+          // Sort by date
+          userReservations.sort((a, b) => {
+            const dateA = a.startTime instanceof Date ? a.startTime.getTime() : new Date(a.startTime).getTime();
+            const dateB = b.startTime instanceof Date ? b.startTime.getTime() : new Date(b.startTime).getTime();
+            return dateB - dateA;
+          });
           setReservations(userReservations);
         } catch (error) {
           console.error("Error fetching user reservations: ", error);
