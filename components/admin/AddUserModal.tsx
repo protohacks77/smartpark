@@ -29,12 +29,13 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }: AddUserModalProps) => {
   const handleAddUser = async () => {
     setIsProcessing(true);
     try {
+      const timestamp = firebase.firestore.Timestamp.now();
       // FIX: Use v8 compat syntax for addDoc.
       const docRef = await db.collection('users').add({
         ...formData,
-        createdAt: firebase.firestore.Timestamp.now(),
+        createdAt: timestamp,
       });
-      onUserAdded({ ...formData, uid: docRef.id, createdAt: new Date() });
+      onUserAdded({ ...formData, uid: docRef.id, createdAt: timestamp.toDate() });
       onClose();
     } catch (error) {
       console.error("Error adding user:", error);
